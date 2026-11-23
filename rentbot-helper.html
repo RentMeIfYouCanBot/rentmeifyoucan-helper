@@ -1,0 +1,322 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<meta name="referrer" content="no-referrer">
+<title>RentBot form helper</title>
+<style>
+  :root {
+    --bg: #f4f6f5; --card: #fff; --text: #17201b; --muted: #5d6b63; --line: #dfe5e1;
+    --accent: #2e9d5b; --accent-text: #fff; --warn: #b86b00; --soft: #eaf5ee;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #111613; --card: #1b221e; --text: #eef3f0; --muted: #9db0a5; --line: #2c3631;
+      --accent: #3fb36f; --accent-text: #08130c; --warn: #f0a33a; --soft: #1f3327; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 560px; margin: 0 auto; padding: 20px 16px 40px; }
+  h1 { font-size: 22px; line-height: 1.25; margin: 8px 0 12px; }
+  h2 { font-size: 17px; margin: 22px 0 8px; }
+  p { margin: 8px 0; }
+  a { color: var(--accent); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin: 14px 0; }
+  .muted { color: var(--muted); font-size: 14px; }
+  .btn { display: block; width: 100%; text-align: center; text-decoration: none; cursor: pointer;
+    font: inherit; font-weight: 600; padding: 13px 16px; margin: 10px 0 0; border-radius: 10px;
+    border: 1px solid var(--line); background: var(--card); color: var(--text); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+  ol { padding-left: 22px; margin: 8px 0; }
+  li { margin: 8px 0; }
+  .answers { list-style: none; padding: 0; margin: 8px 0 0; }
+  .answers li { display: flex; flex-direction: column; padding: 8px 0; border-top: 1px solid var(--line); margin: 0; }
+  .answers .l { font-size: 13px; color: var(--muted); }
+  .answers button { all: unset; cursor: pointer; font-weight: 600; word-break: break-word; }
+  .answers .self { color: var(--warn); font-style: italic; font-weight: 400; }
+  .ok { background: var(--soft); }
+  .spin { display: inline-block; width: 18px; height: 18px; margin-right: 8px; vertical-align: -3px;
+    border: 3px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: s .8s linear infinite; }
+  @keyframes s { to { transform: rotate(360deg); } }
+  .toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); background: var(--text); color: var(--bg);
+    padding: 8px 14px; border-radius: 8px; font-size: 14px; opacity: 0; transition: opacity .2s; pointer-events: none; }
+  .toast.on { opacity: 1; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main id="app"><p><span class="spin"></span></p></main>
+<div class="toast" id="toast"></div>
+<script>
+'use strict';
+// The RentBot form helper page. Modes (URL fragment, never sent to a server):
+//   #f=<answers>      from a "✍️ Fill in form" button: with the userscript, it
+//                     stores the answers and opens the form (the script does
+//                     that); without, this page offers the right browser or
+//                     shows the answers to copy.
+//   #test&b=<bot>     checks that the userscript runs in this browser.
+//   (none / #install) how to install the userscript.
+(function () {
+  const app = document.getElementById('app');
+  const hash = new URLSearchParams(location.hash.replace(/^#/, ''));
+  const ua = navigator.userAgent;
+  const android = /Android/i.test(ua);
+  const ios = /iPhone|iPad|iPod/i.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+  const scriptURL = new URL('rentbot-helper.user.js', location.href).href;
+  let lang = (hash.get('l') || navigator.language || 'en').slice(0, 2) === 'de' ? 'de' : 'en';
+
+  const T = {
+    de: {
+      opening: 'Formular wird geöffnet…',
+      notActiveTitle: 'Der Helfer läuft in diesem Browser nicht',
+      notActive: 'Wahrscheinlich hat Telegram den Link in seinem eigenen Browser geöffnet. Öffne ihn in dem Browser, in dem du den Helfer installiert hast:',
+      inFirefox: 'In Firefox öffnen',
+      inOther: 'In anderem Browser öffnen',
+      inSafari: 'In Safari öffnen',
+      copyLink: 'Link kopieren',
+      copied: 'Kopiert',
+      orByHand: 'Oder von Hand ausfüllen',
+      byHand: 'Tippe auf eine Antwort, um sie zu kopieren.',
+      openForm: 'Formular ohne Helfer öffnen',
+      yourself: 'selbst ausfüllen',
+      tipTitle: 'Damit es jedes Mal klappt',
+      tipAndroid: 'In Telegram: Einstellungen → Chat-Einstellungen → „In-App-Browser“ ausschalten. Dann öffnen Links in deinem Standardbrowser (mach Firefox dazu: Android-Einstellungen → Apps → Standard-Apps → Browser).',
+      tipIOS: 'In Telegram: Einstellungen → Daten und Speicher (oder Chat-Einstellungen) → „Links öffnen in“ → Safari.',
+      tipOther: 'Stell Telegram so ein, dass Links in deinem normalen Browser öffnen, nicht im Telegram-Browser.',
+      install: 'Helfer installieren',
+      badLink: 'Dieser Link ist unvollständig. Tippe in Telegram noch einmal auf den Button.',
+      error: 'Der Helfer konnte die Antworten nicht lesen: ',
+      testOk: '✅ Der Helfer funktioniert in diesem Browser',
+      testOkText: 'Ab jetzt füllt der Button „✍️ Formular ausfüllen“ die Formulare für dich aus. Du prüfst, löst das Captcha und sendest ab.',
+      back: 'Zurück zu Telegram',
+      testNo: '❌ Der Helfer ist in diesem Browser nicht aktiv',
+      testNoText: 'Wenn du ihn schon installiert hast, öffne diese Seite in dem Browser, in dem er installiert ist:',
+      checkAgain: 'Nochmal prüfen',
+      installTitle: 'RentBot-Formular-Helfer',
+      installIntro: 'Der Helfer füllt Bewerbungsformulare (degewo, Gewobag, berlinovo, Stadt und Land, WBM) mit den Antworten aus deinem Profil aus. Du prüfst, löst das Captcha und sendest selbst ab. Einmal einrichten, etwa 2 Minuten.',
+      installed: '✅ Der Helfer ist in diesem Browser installiert.',
+      installBtn: '📲 Helfer installieren',
+      androidSteps: [
+        'Installiere <a href="https://play.google.com/store/apps/details?id=org.mozilla.firefox">Firefox</a>, falls du ihn noch nicht nutzt (Chrome kann keine Erweiterungen).',
+        'In Firefox: Menü ⋮ → Erweiterungen → <a href="https://addons.mozilla.org/android/addon/violentmonkey/">Violentmonkey</a> → Hinzufügen.',
+        'Öffne diese Seite in Firefox, tippe unten auf „Helfer installieren“ und bestätige mit „Installieren“.',
+        'Damit Telegram Links in Firefox öffnet: Firefox als Standardbrowser festlegen und in Telegram unter Einstellungen → Chat-Einstellungen den „In-App-Browser“ ausschalten.',
+        'Teste es im Bot: /helper → 🧪 Testen.'
+      ],
+      iosSteps: [
+        'Installiere die kostenlose App <a href="https://apps.apple.com/app/id1463298887">Userscripts</a> aus dem App Store.',
+        'Einstellungen-App → Apps → Safari → Erweiterungen → Userscripts: einschalten und „Alle Websites“ erlauben.',
+        'Öffne diese Seite in Safari und tippe auf „Helfer installieren“. Tippe dann in der Adressleiste auf das Erweiterungs-Symbol (ᴀA oder 🧩) → Userscripts → Installieren.',
+        'In Telegram: Einstellungen → Daten und Speicher (oder Chat-Einstellungen) → „Links öffnen in“ → Safari.',
+        'Teste es im Bot: /helper → 🧪 Testen.'
+      ],
+      desktopSteps: [
+        'Installiere die Browser-Erweiterung <a href="https://violentmonkey.github.io/">Violentmonkey</a> oder <a href="https://www.tampermonkey.net/">Tampermonkey</a>.',
+        'Tippe auf „Helfer installieren“ und bestätige.',
+        'Teste es im Bot: /helper → 🧪 Testen.'
+      ],
+      other: 'Andere Geräte',
+      privacy: 'Deine Antworten stehen nur im Link (hinter dem #) und werden an keinen Server geschickt. Der Helfer schickt nie etwas ab.'
+    },
+    en: {
+      opening: 'Opening the form…',
+      notActiveTitle: "The helper isn't running in this browser",
+      notActive: 'Telegram probably opened the link in its own browser. Open it in the browser where you installed the helper:',
+      inFirefox: 'Open in Firefox',
+      inOther: 'Open in another browser',
+      inSafari: 'Open in Safari',
+      copyLink: 'Copy link',
+      copied: 'Copied',
+      orByHand: 'Or fill it in by hand',
+      byHand: 'Tap an answer to copy it.',
+      openForm: 'Open the form without the helper',
+      yourself: 'fill in yourself',
+      tipTitle: 'To make it work every time',
+      tipAndroid: 'In Telegram: Settings → Chat Settings → turn off “In-App Browser”. Links then open in your default browser (make that Firefox: Android Settings → Apps → Default apps → Browser).',
+      tipIOS: 'In Telegram: Settings → Data and Storage (or Chat Settings) → “Open Links in” → Safari.',
+      tipOther: "Set Telegram to open links in your normal browser, not in Telegram's own browser.",
+      install: 'Install the helper',
+      badLink: 'This link is incomplete. Tap the button in Telegram again.',
+      error: "The helper couldn't read the answers: ",
+      testOk: '✅ The helper works in this browser',
+      testOkText: 'From now on, the “✍️ Fill in form” button fills in forms for you. You check them, solve the captcha and send.',
+      back: 'Back to Telegram',
+      testNo: "❌ The helper isn't active in this browser",
+      testNoText: 'If you already installed it, open this page in the browser where it is installed:',
+      checkAgain: 'Check again',
+      installTitle: 'RentBot form helper',
+      installIntro: 'The helper fills in application forms (degewo, Gewobag, berlinovo, Stadt und Land, WBM) with the answers from your profile. You check them, solve the captcha and send yourself. Set it up once, about 2 minutes.',
+      installed: '✅ The helper is installed in this browser.',
+      installBtn: '📲 Install the helper',
+      androidSteps: [
+        'Install <a href="https://play.google.com/store/apps/details?id=org.mozilla.firefox">Firefox</a> if you don’t use it yet (Chrome can’t run extensions).',
+        'In Firefox: menu ⋮ → Extensions → <a href="https://addons.mozilla.org/android/addon/violentmonkey/">Violentmonkey</a> → Add.',
+        'Open this page in Firefox, tap “Install the helper” below and confirm with “Install”.',
+        'So that Telegram opens links in Firefox: make Firefox your default browser, and in Telegram turn off Settings → Chat Settings → “In-App Browser”.',
+        'Test it in the bot: /helper → 🧪 Test.'
+      ],
+      iosSteps: [
+        'Install the free app <a href="https://apps.apple.com/app/id1463298887">Userscripts</a> from the App Store.',
+        'Settings app → Apps → Safari → Extensions → Userscripts: turn it on and allow “All Websites”.',
+        'Open this page in Safari and tap “Install the helper”. Then tap the extensions icon in the address bar (ᴀA or 🧩) → Userscripts → Install.',
+        'In Telegram: Settings → Data and Storage (or Chat Settings) → “Open Links in” → Safari.',
+        'Test it in the bot: /helper → 🧪 Test.'
+      ],
+      desktopSteps: [
+        'Install the browser extension <a href="https://violentmonkey.github.io/">Violentmonkey</a> or <a href="https://www.tampermonkey.net/">Tampermonkey</a>.',
+        'Tap “Install the helper” and confirm.',
+        'Test it in the bot: /helper → 🧪 Test.'
+      ],
+      other: 'Other devices',
+      privacy: 'Your answers are only in the link (after the #) and are never sent to a server. The helper never sends anything.'
+    }
+  };
+  let t = T[lang];
+
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const active = () => document.documentElement.hasAttribute('data-rentbot-helper');
+  const toast = (s) => {
+    const el = document.getElementById('toast');
+    el.textContent = s;
+    el.classList.add('on');
+    setTimeout(() => el.classList.remove('on'), 1200);
+  };
+  const copy = (s) => {
+    const done = () => toast(t.copied);
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(s).then(done, () => fallbackCopy(s, done));
+    else fallbackCopy(s, done);
+  };
+  function fallbackCopy(s, done) {
+    const ta = document.createElement('textarea');
+    ta.value = s;
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); done(); } catch (e) {}
+    ta.remove();
+  }
+
+  // The userscript marks the page at document-start; some script managers
+  // (iOS) start a little later, so wait a moment before saying it's missing.
+  function whenChecked(fn) {
+    const end = Date.now() + 1500;
+    (function poll() {
+      if (active() || Date.now() > end) fn(active());
+      else setTimeout(poll, 100);
+    })();
+  }
+
+  async function decode(s) {
+    s = s.replace(/-/g, '+').replace(/_/g, '/');
+    while (s.length % 4) s += '=';
+    const bin = Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+    const stream = new Blob([bin]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+    return JSON.parse(await new Response(stream).text());
+  }
+
+  // Buttons that reopen this exact page (with its fragment) in another browser.
+  function browserButtons() {
+    const here = location.host + location.pathname + location.search + location.hash;
+    let h = '';
+    if (android) {
+      h += `<a class="btn primary" href="intent://${esc(here)}#Intent;scheme=https;package=org.mozilla.firefox;end">${t.inFirefox}</a>`;
+      h += `<a class="btn" href="intent://${esc(here)}#Intent;scheme=https;action=android.intent.action.VIEW;category=android.intent.category.BROWSABLE;end">${t.inOther}</a>`;
+    } else if (ios) {
+      h += `<a class="btn primary" href="x-safari-https://${esc(here)}">${t.inSafari}</a>`;
+    }
+    h += `<button class="btn" data-copy="${esc(location.href)}">${t.copyLink}</button>`;
+    return h;
+  }
+
+  function tip() {
+    return `<h2>${t.tipTitle}</h2><p class="muted">${android ? t.tipAndroid : ios ? t.tipIOS : t.tipOther}</p>`;
+  }
+
+  function render(html) {
+    app.innerHTML = html;
+    app.querySelectorAll('[data-copy]').forEach((b) => b.addEventListener('click', () => copy(b.getAttribute('data-copy'))));
+    app.querySelectorAll('[data-reload]').forEach((b) => b.addEventListener('click', () => location.reload()));
+  }
+
+  // ---------- #f=… : fill a form ----------
+  async function fill(data) {
+    let p;
+    try {
+      p = await decode(data);
+    } catch (e) {
+      render(`<h1>${t.badLink}</h1>`);
+      return;
+    }
+    if (p.l && T[p.l]) { lang = p.l; t = T[lang]; document.documentElement.lang = lang; }
+    render(`<p><span class="spin"></span>${t.opening}</p>`);
+    whenChecked((ok) => {
+      if (ok) {
+        // The userscript stores the answers and opens the form; only an
+        // error is left for this page to show.
+        setTimeout(() => {
+          const err = document.documentElement.getAttribute('data-rentbot-error');
+          if (err) render(`<h1>${esc(t.error + err)}</h1><a class="btn primary" href="${esc(p.u)}">${t.openForm}</a>`);
+        }, 1500);
+        return;
+      }
+      const list = (p.a || []).map(([label, value]) => value
+        ? `<li><span class="l">${esc(label)}</span><button data-copy="${esc(value)}">${esc(value)}</button></li>`
+        : `<li><span class="l">${esc(label)}</span><span class="self">${t.yourself}</span></li>`).join('');
+      render(`
+        <h1>${t.notActiveTitle}</h1>
+        <p>${t.notActive}</p>
+        ${browserButtons()}
+        <div class="card">
+          <h2 style="margin-top:0">${t.orByHand}</h2>
+          ${p.t ? `<p><b>${esc(p.t)}</b></p>` : ''}
+          <a class="btn primary" href="${esc(p.u)}">${t.openForm}</a>
+          <p class="muted">${t.byHand}</p>
+          <ul class="answers">${list}</ul>
+        </div>
+        ${tip()}
+        <a class="btn" href="#install">${t.install}</a>`);
+    });
+  }
+
+  // ---------- #test : is the userscript running here? ----------
+  function test() {
+    const bot = (hash.get('b') || '').replace(/[^\w]/g, '');
+    whenChecked((ok) => {
+      if (ok) {
+        render(`<div class="card ok"><h1 style="margin-top:0">${t.testOk}</h1><p>${t.testOkText}</p>
+          ${bot ? `<a class="btn primary" href="https://t.me/${bot}?start=helper">${t.back}</a>` : ''}</div>`);
+        return;
+      }
+      render(`<h1>${t.testNo}</h1><p>${t.testNoText}</p>${browserButtons()}
+        <button class="btn" data-reload>${t.checkAgain}</button>${tip()}
+        <h2>${t.install}</h2>${installSteps(false)}`);
+    });
+  }
+
+  // ---------- install instructions ----------
+  function installSteps(showDone) {
+    const steps = android ? t.androidSteps : ios ? t.iosSteps : t.desktopSteps;
+    let h = showDone && active() ? `<div class="card ok">${t.installed}</div>` : '';
+    h += `<div class="card"><ol>${steps.map((s) => `<li>${s}</li>`).join('')}</ol>
+      <a class="btn primary" href="${esc(scriptURL)}">${t.installBtn}</a></div>`;
+    if (android || ios) {
+      const other = android ? t.iosSteps : t.androidSteps;
+      h += `<details class="card"><summary>${t.other} (${android ? 'iPhone / iPad' : 'Android'})</summary><ol>${other.map((s) => `<li>${s}</li>`).join('')}</ol></details>`;
+    }
+    return h;
+  }
+
+  function install() {
+    whenChecked(() => render(`<h1>${t.installTitle}</h1><p>${t.installIntro}</p>${installSteps(true)}<p class="muted">${t.privacy}</p>`));
+  }
+
+  document.documentElement.lang = lang;
+  window.addEventListener('hashchange', () => location.reload());
+  if (hash.has('f')) fill(hash.get('f'));
+  else if (hash.has('test')) test();
+  else install();
+})();
+</script>
+</body>
+</html>
