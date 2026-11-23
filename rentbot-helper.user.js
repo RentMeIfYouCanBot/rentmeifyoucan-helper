@@ -2,7 +2,7 @@
 // @name           RentBot form helper
 // @name:de        RentBot Formular-Helfer
 // @namespace      rentmeifyoucan
-// @version        1.0.0
+// @version        1.0.1
 // @description    Fills in flat application forms with the answers from your RentBot in Telegram. You check them, solve the captcha and send.
 // @description:de Füllt Bewerbungsformulare mit den Antworten aus deinem RentBot in Telegram aus. Du prüfst, löst das Captcha und sendest.
 // @match          https://*/*rentbot-helper.html*
@@ -30,7 +30,7 @@
 async function main() {
   if (window.top !== window) return;
 
-  const VERSION = '1.0.0';
+  const VERSION = '1.0.1';
   const KEY = 'fill';
   const MAX_AGE = 2 * 3600e3; // stored answers are used for this long
 
@@ -162,7 +162,7 @@ const TEXT = {
     thenNoCaptcha: 'Prüfe die Angaben und sende ab.',
     captcha: 'Zum Captcha',
     close: 'Schließen',
-    none: 'RentBot hat hier keine Felder gefunden. Ist das das richtige Formular?',
+    none: 'RentBot hat hier kein Formular gefunden. Ist das Angebot noch offen?',
   },
   en: {
     filling: '✍️ RentBot is filling in the form…',
@@ -173,7 +173,7 @@ const TEXT = {
     thenNoCaptcha: 'Check the answers and send.',
     captcha: 'Go to captcha',
     close: 'Close',
-    none: "RentBot didn't find any fields here. Is this the right form?",
+    none: "RentBot didn't find the form here. Is the offer still open?",
   },
 };
 
@@ -205,6 +205,7 @@ class Filler {
         const els = this.locate(a);
         if (!els.length) continue;
         seen = true;
+        openDetails(els[0]);
         if (!a.value) {
           this.mark(els[0], 'check');
           continue;
@@ -233,7 +234,7 @@ class Filler {
         if (els.length) this.mark(els[0], 'check');
       }
     }
-    this.finish(seen);
+    await this.finish(seen);
   }
 
   // locate returns the visible form controls of an answer (for a radio
@@ -412,7 +413,7 @@ class Filler {
     );
   }
 
-  finish(seen) {
+  async finish(seen) {
     const t = this.t;
     const want = this.answers.filter((a) => a.value);
     const done = want.filter((a) => a.done);
@@ -425,10 +426,17 @@ class Filler {
     }
     if (yourself.length) lines.push(t.yourself, ...yourself.map((s) => '• ' + clip(s)));
     if (missed.length) lines.push(t.missed, ...missed.map((s) => '• ' + clip(s)));
-    const cap = this.captcha();
+    // reCAPTCHA loads after the form.
+    const cap = await waitFor(() => this.captcha(), 3000);
     lines.push(cap ? t.then : t.thenNoCaptcha);
     const buttons = [];
-    if (cap) buttons.push([t.captcha, () => cap.scrollIntoView({ behavior: 'smooth', block: 'center' })]);
+    const toCaptcha = () => {
+      const c = this.captcha();
+      if (!c) return;
+      openDetails(c);
+      c.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    };
+    if (cap) buttons.push([t.captcha, toCaptcha]);
     this.badge(t.filled(done.length, want.length), lines, buttons);
 
     // Friendly Captcha (degewo) starts its in-browser check when the form
@@ -478,6 +486,14 @@ class Filler {
       button:last-child{background:#44524a}
     </style>`;
     this.root.appendChild(box);
+  }
+}
+
+// openDetails unfolds the collapsed sections (<details>) around el, e.g.
+// degewo's form under "Anfrage senden".
+function openDetails(el) {
+  for (let d = el && el.closest('details'); d; d = d.parentElement && d.parentElement.closest('details')) {
+    if (!d.open) d.open = true;
   }
 }
 
