@@ -2,7 +2,7 @@
 // @name           RentBot form helper
 // @name:de        RentBot Formular-Helfer
 // @namespace      rentmeifyoucan
-// @version        1.0.1
+// @version        1.0.2
 // @description    Fills in flat application forms with the answers from your RentBot in Telegram. You check them, solve the captcha and send.
 // @description:de Füllt Bewerbungsformulare mit den Antworten aus deinem RentBot in Telegram aus. Du prüfst, löst das Captcha und sendest.
 // @match          https://*/*rentbot-helper.html*
@@ -30,7 +30,7 @@
 async function main() {
   if (window.top !== window) return;
 
-  const VERSION = '1.0.1';
+  const VERSION = '1.0.2';
   const KEY = 'fill';
   const MAX_AGE = 2 * 3600e3; // stored answers are used for this long
 
@@ -66,14 +66,25 @@ async function main() {
   } catch (e) {
     rec = null;
   }
-  if (!rec || !rec.p) return;
-  if (Date.now() - rec.at > MAX_AGE) {
-    await store.del(KEY);
+  const fresh = rec && rec.p && Date.now() - rec.at <= MAX_AGE;
+  if (rec && !fresh) await store.del(KEY);
+  if (fresh && formKey(rec.p.u) === formKey(location.href)) {
+    await domReady();
+    await new Filler(rec.p).run();
     return;
   }
-  if (formKey(rec.p.u) !== formKey(location.href)) return;
+  // An application form without answers for it: say why nothing happens
+  // (opened with 🌐 instead of ✍️, or the answers are for another page).
   await domReady();
-  await new Filler(rec.p).run();
+  await sleep(1500);
+  const formPage =
+    /^\/public\/listings\/.+\/application/.test(location.pathname) ||
+    document.querySelector('form[id^="form_apartment_inquiry"], form.powermail_form');
+  if (!formPage) return;
+  const lang = fresh ? rec.p.l : (navigator.language || '').slice(0, 2);
+  const f = new Filler({ l: lang, a: [] });
+  if (fresh) f.badge(f.t.other, [f.t.otherHint, f.t.forPage + ' ' + formKey(rec.p.u), f.t.thisPage + ' ' + formKey(location.href)]);
+  else f.badge(f.t.noAnswers, [f.t.noAnswersHint]);
 
   // ---------- helpers ----------
 
@@ -163,6 +174,12 @@ const TEXT = {
     captcha: 'Zum Captcha',
     close: 'Schließen',
     none: 'RentBot hat hier kein Formular gefunden. Ist das Angebot noch offen?',
+    noAnswers: 'RentBot: keine Antworten für dieses Formular',
+    noAnswersHint: 'Öffne Formulare über ✍️ Formular ausfüllen im Bot, dann füllt der Helfer sie aus.',
+    other: 'RentBot: die Antworten gehören zu einem anderen Formular',
+    otherHint: 'Tippe im Bot noch einmal auf ✍️ für dieses Angebot.',
+    forPage: 'Antworten für:',
+    thisPage: 'Diese Seite:',
   },
   en: {
     filling: '✍️ RentBot is filling in the form…',
@@ -174,6 +191,12 @@ const TEXT = {
     captcha: 'Go to captcha',
     close: 'Close',
     none: "RentBot didn't find the form here. Is the offer still open?",
+    noAnswers: 'RentBot: no answers for this form',
+    noAnswersHint: 'Open forms with ✍️ Fill in form in the bot, then the helper fills them in.',
+    other: 'RentBot: the answers are for another form',
+    otherHint: 'Tap ✍️ for this offer in the bot again.',
+    forPage: 'Answers for:',
+    thisPage: 'This page:',
   },
 };
 
