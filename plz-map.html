@@ -71,7 +71,9 @@ const T = {
 }[lang];
 
 const tg = window.Telegram && Telegram.WebApp;
-const inTelegram = !!(tg && tg.initData);
+// Opened from a keyboard button (the only way sendData works), the Mini App
+// gets no initData, but every Telegram app sets the platform.
+const inTelegram = !!(tg && tg.platform && tg.platform !== "unknown");
 if (tg) { tg.ready(); tg.expand(); }
 
 const picked = new Set();
@@ -131,7 +133,7 @@ function districtCodes(name) {
 function save() {
   const data = "plz:" + [...picked].sort().join(",");
   if (inTelegram) tg.sendData(data); // closes the Mini App
-  else alert(data);
+  else alert("Not in Telegram, nothing saved: " + data);
 }
 
 function updateLabels() {
