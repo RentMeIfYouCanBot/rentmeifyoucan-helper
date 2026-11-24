@@ -2,7 +2,7 @@
 // @name           RentBot form helper
 // @name:de        RentBot Formular-Helfer
 // @namespace      rentmeifyoucan
-// @version        1.0.2
+// @version        1.0.3
 // @description    Fills in flat application forms with the answers from your RentBot in Telegram. You check them, solve the captcha and send.
 // @description:de Füllt Bewerbungsformulare mit den Antworten aus deinem RentBot in Telegram aus. Du prüfst, löst das Captcha und sendest.
 // @match          https://*/*rentbot-helper.html*
@@ -30,7 +30,7 @@
 async function main() {
   if (window.top !== window) return;
 
-  const VERSION = '1.0.2';
+  const VERSION = '1.0.3';
   const KEY = 'fill';
   const MAX_AGE = 2 * 3600e3; // stored answers are used for this long
 
@@ -457,6 +457,7 @@ class Filler {
       const c = this.captcha();
       if (!c) return;
       openDetails(c);
+      this.minimize(); // out of the captcha's way
       c.scrollIntoView({ behavior: 'smooth', block: 'center' });
     };
     if (cap) buttons.push([t.captcha, toCaptcha]);
@@ -471,14 +472,17 @@ class Filler {
     (first || cap || (done[0] && this.locate(done[0])[0]) || document.body).scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
+  // badge shows the helper's box at the top of the page (the captcha and
+  // the send button are at the bottom of the forms).
   badge(title, lines, buttons = []) {
     if (!this.host) {
       this.host = document.createElement('div');
       this.host.setAttribute('data-rentbot-badge', '');
-      this.host.style.cssText = 'position:fixed;left:8px;right:8px;bottom:8px;z-index:2147483647;';
       this.root = this.host.attachShadow({ mode: 'open' });
       document.body.appendChild(this.host);
     }
+    this.host.style.cssText = 'position:fixed;left:8px;right:8px;top:8px;z-index:2147483647;';
+    this.last = [title, lines, buttons];
     const box = document.createElement('div');
     box.className = 'b';
     const h = document.createElement('div');
@@ -502,13 +506,25 @@ class Filler {
     this.root.innerHTML = `<style>
       .b{max-width:560px;margin:0 auto;padding:12px 14px;border-radius:12px;background:#1f2a24;color:#f3f6f4;
          font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.35);
-         max-height:45vh;overflow:auto}
+         max-height:35vh;overflow:auto}
       .h{font-weight:600;font-size:15px;margin-bottom:4px}
       .r{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}
       button{font:inherit;padding:8px 14px;border-radius:8px;border:0;background:#2e9d5b;color:#fff;min-height:40px}
       button:last-child{background:#44524a}
     </style>`;
     this.root.appendChild(box);
+  }
+
+  // minimize shrinks the box to a chip in the top right corner; a tap
+  // opens it again.
+  minimize() {
+    if (!this.host || !this.last) return;
+    this.host.style.cssText = 'position:fixed;right:8px;top:8px;z-index:2147483647;';
+    this.root.innerHTML = `<style>
+      button{font:600 14px/1 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding:10px 14px;border-radius:999px;
+             border:0;background:#1f2a24;color:#f3f6f4;box-shadow:0 4px 14px rgba(0,0,0,.35);min-height:40px}
+    </style><button>✍️ RentBot</button>`;
+    this.root.querySelector('button').addEventListener('click', () => this.badge(...this.last));
   }
 }
 
