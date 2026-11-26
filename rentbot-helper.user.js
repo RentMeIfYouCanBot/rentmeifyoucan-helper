@@ -2,7 +2,7 @@
 // @name           RentBot form helper
 // @name:de        RentBot Formular-Helfer
 // @namespace      rentmeifyoucan
-// @version        1.0.5
+// @version        1.0.6
 // @description    Fills in flat application forms with the answers from your RentBot in Telegram. You check them, solve the captcha and send.
 // @description:de Füllt Bewerbungsformulare mit den Antworten aus deinem RentBot in Telegram aus. Du prüfst, löst das Captcha und sendest.
 // @match          https://*/*rentbot-helper.html*
@@ -32,7 +32,7 @@
 async function main() {
   if (window.top !== window) return;
 
-  const VERSION = '1.0.5';
+  const VERSION = '1.0.6';
   const KEY = 'fill';
   const MAX_AGE = 2 * 3600e3; // stored answers are used for this long
 
@@ -52,7 +52,11 @@ async function main() {
     try {
       const p = await decode(m[1]);
       if (!p || !/^https:\/\//.test(p.u) || !Array.isArray(p.a)) throw new Error('bad payload');
-      await store.set(KEY, JSON.stringify({ p, at: Date.now() }));
+      // The page names the newest script version; the form page offers the
+      // update if this one is older.
+      const latest = await latestVersion();
+      const update = newer(latest, VERSION) ? { v: latest, url: new URL('rentbot-helper.user.js', location.href).href } : null;
+      await store.set(KEY, JSON.stringify({ p, at: Date.now(), update }));
       location.replace(p.u);
     } catch (e) {
       mark('data-rentbot-error', String((e && e.message) || e));
@@ -72,7 +76,9 @@ async function main() {
   if (rec && !fresh) await store.del(KEY);
   if (fresh && formKey(rec.p.u) === formKey(location.href)) {
     await domReady();
-    await new Filler(rec.p).run();
+    const filler = new Filler(rec.p);
+    filler.update = rec.update;
+    await filler.run();
     return;
   }
   // An application form without answers for it: say why nothing happens
@@ -85,6 +91,7 @@ async function main() {
   if (!formPage) return;
   const lang = fresh ? rec.p.l : (navigator.language || '').slice(0, 2);
   const f = new Filler({ l: lang, a: [] });
+  if (rec) f.update = rec.update;
   if (fresh) f.badge(f.t.other, [f.t.otherHint, f.t.forPage + ' ' + formKey(rec.p.u), f.t.thisPage + ' ' + formKey(location.href)]);
   else f.badge(f.t.noAnswers, [f.t.noAnswersHint]);
 
@@ -124,6 +131,18 @@ async function main() {
     }
   }
 
+  // latestVersion reads the newest script version from the helper page's
+  // <meta name="rentbot-helper-version"> ('' if the page has none).
+  async function latestVersion() {
+    const read = () => {
+      const m = document.querySelector('meta[name="rentbot-helper-version"]');
+      return m ? m.content.trim() : '';
+    };
+    if (read()) return read();
+    await domReady();
+    return read();
+  }
+
   function domReady() {
     if (document.readyState !== 'loading') return Promise.resolve();
     return new Promise((r) => document.addEventListener('DOMContentLoaded', r, { once: true }));
@@ -135,6 +154,17 @@ async function main() {
 }
 
 // norm makes texts comparable: no tags, marks or extra spaces, lower case.
+// newer reports whether version a (like 1.0.10) is above version b.
+function newer(a, b) {
+  const x = String(a || '').split('.').map(Number);
+  const y = String(b || '').split('.').map(Number);
+  for (let i = 0; i < Math.max(x.length, y.length); i++) {
+    const d = (x[i] || 0) - (y[i] || 0);
+    if (d) return d > 0;
+  }
+  return false;
+}
+
 function norm(s) {
   return String(s == null ? '' : s)
     .normalize('NFKC')
@@ -179,6 +209,8 @@ const TEXT = {
     thenNoCaptcha: 'Prüfe die Angaben und sende ab.',
     captcha: 'Zum Captcha',
     close: 'Schließen',
+    update: (v) => `🆕 Es gibt eine neue Helfer-Version (${v}). Tippe auf „Aktualisieren“ und bestätige, deine Eingaben hier bleiben.`,
+    updateBtn: 'Aktualisieren',
     none: 'RentBot hat hier kein Formular gefunden. Ist das Angebot noch offen?',
     noAnswers: 'RentBot: keine Antworten für dieses Formular',
     noAnswersHint: 'Öffne Formulare über ✍️ Formular ausfüllen im Bot, dann füllt der Helfer sie aus.',
@@ -201,6 +233,8 @@ const TEXT = {
     thenNoCaptcha: 'Check the answers and send.',
     captcha: 'Go to captcha',
     close: 'Close',
+    update: (v) => `🆕 There is a new helper version (${v}). Tap “Update” and confirm; what you entered here stays.`,
+    updateBtn: 'Update',
     none: "RentBot didn't find the form here. Is the offer still open?",
     noAnswers: 'RentBot: no answers for this form',
     noAnswersHint: 'Open forms with ✍️ Fill in form in the bot, then the helper fills them in.',
@@ -542,6 +576,13 @@ class Filler {
     }
     this.host.style.cssText = 'position:fixed;left:8px;right:8px;top:8px;z-index:2147483647;';
     this.last = [title, lines, buttons];
+    // A newer script is out: say so in every box, with a button that opens
+    // the install link in a new tab (this one keeps the filled form).
+    const up = this.update;
+    if (up && up.v && /^https:\/\//.test(up.url)) {
+      lines = [...lines, this.t.update(up.v)];
+      buttons = [...buttons, [this.t.updateBtn, () => window.open(up.url, '_blank')]];
+    }
     const box = document.createElement('div');
     box.className = 'b';
     const h = document.createElement('div');
@@ -567,7 +608,7 @@ class Filler {
          font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.35);
          max-height:35vh;overflow:auto}
       .h{font-weight:600;font-size:15px;margin-bottom:4px}
-      .r{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}
+      .r{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;margin-top:10px}
       button{font:inherit;padding:8px 14px;border-radius:8px;border:0;background:#2e9d5b;color:#fff;min-height:40px}
       button:last-child{background:#44524a}
     </style>`;

@@ -10,4 +10,6 @@ the script never submits anything.
   Userscripts on iOS).
 
 Source of truth: `helper/` in the bot's repository; copy changes here and
-bump `@version`.
+bump the version in three places: `@version` and `VERSION` in the script,
+and `<meta name="rentbot-helper-version">` in the page. The page tells older
+scripts that an update is out (on the form page and on `#install`/`#test`).

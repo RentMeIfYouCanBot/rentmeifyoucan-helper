@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <meta name="referrer" content="no-referrer">
+<!-- The newest rentbot-helper.user.js @version: older scripts offer the update. -->
+<meta name="rentbot-helper-version" content="1.0.6">
 <title>RentBot form helper</title>
 <style>
   :root {
@@ -112,6 +114,9 @@
       installed: '✅ Der Helfer ist in diesem Browser installiert.',
       installBtn: '📲 Helfer installieren',
       reinstall: 'Neu installieren',
+      updateTitle: (v) => `🆕 Neue Helfer-Version ${v}`,
+      updateText: (old) => `Installiert ist ${old}. Tippe auf „Aktualisieren“ und bestätige. Komm danach zurück, die Seite prüft es dann.`,
+      updateBtn: 'Aktualisieren',
       step: 'Schritt',
       later: 'kommt nach dem Schritt davor',
       noFirefox: 'Noch kein Firefox? <a href="https://play.google.com/store/apps/details?id=org.mozilla.firefox">Aus dem Play Store holen</a>, dann hier auf „In Firefox öffnen“ tippen.',
@@ -177,6 +182,9 @@
       installed: '✅ The helper is installed in this browser.',
       installBtn: '📲 Install the helper',
       reinstall: 'Install again',
+      updateTitle: (v) => `🆕 New helper version ${v}`,
+      updateText: (old) => `You have ${old}. Tap “Update” and confirm. Then come back; the page checks it.`,
+      updateBtn: 'Update',
       step: 'Step',
       later: 'comes after the step before',
       noFirefox: 'No Firefox yet? <a href="https://play.google.com/store/apps/details?id=org.mozilla.firefox">Get it from the Play Store</a>, then tap “Open in Firefox” here.',
@@ -216,6 +224,22 @@
 
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const active = () => document.documentElement.hasAttribute('data-rentbot-helper');
+  // The userscript marks the page with its version; the meta tag names the
+  // newest one.
+  const latest = (document.querySelector('meta[name="rentbot-helper-version"]') || {}).content || '';
+  const installedVersion = () => document.documentElement.getAttribute('data-rentbot-helper') || '0';
+  const newer = (a, b) => {
+    const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number);
+    for (let i = 0; i < Math.max(x.length, y.length); i++) {
+      const d = (x[i] || 0) - (y[i] || 0);
+      if (d) return d > 0;
+    }
+    return false;
+  };
+  const outdated = () => active() && newer(latest, installedVersion());
+  const updateCard = () => `<div class="card"><h2 style="margin-top:0">${t.updateTitle(esc(latest))}</h2>
+    <p>${t.updateText(esc(installedVersion()))}</p>
+    <a class="btn primary" href="${esc(scriptURL)}" data-try>${t.updateBtn}</a></div>`;
   const toast = (s) => {
     const el = document.getElementById('toast');
     el.textContent = s;
@@ -332,7 +356,8 @@
       if (ok) {
         attempt.set(null);
         render(`<div class="card ok"><h1 style="margin-top:0">${t.testOk}</h1><p>${t.testOkText}</p>
-          ${bot ? `<a class="btn primary" href="https://t.me/${bot}?start=helper">${t.back}</a>` : ''}</div>`);
+          ${bot ? `<a class="btn primary" href="https://t.me/${bot}?start=helper">${t.back}</a>` : ''}</div>
+          ${outdated() ? updateCard() : ''}`);
         return;
       }
       render(`<h1>${t.testNo}</h1><p>${t.testNoText}</p>${browserButtons()}
@@ -372,7 +397,7 @@
     let cur = needs.findIndex((n) => !done(n));
     if (ok) attempt.set(null);
     else if (attempt.get()) attempt.set('2');
-    let h = ok ? `<div class="card ok">${t.installed}</div>` : '';
+    let h = !ok ? '' : outdated() ? updateCard() : `<div class="card ok">${t.installed}</div>`;
     steps.forEach(([title, body], i) => {
       const n = needs[i];
       const state = i < cur ? 'done' : i === cur ? 'cur' : 'locked';
@@ -382,7 +407,7 @@
       if (state === 'done' && n === 'mgr' && !ok && attempt.get() !== '2') h += `<button class="btn small" data-mgr="">${t.mgrBack}</button>`;
       h += '</div>';
     });
-    if (ok) h += `<a class="btn" href="${esc(scriptURL)}">${t.reinstall}</a>`;
+    if (ok && !outdated()) h += `<a class="btn" href="${esc(scriptURL)}">${t.reinstall}</a>`;
     if (android || ios) {
       const other = t.steps[android ? 'ios' : 'android'];
       h += `<details class="card"><summary>${t.other} (${android ? 'iPhone / iPad' : 'Android'})</summary><ol>${other.map(([title, body]) => `<li><b>${title}:</b> ${body}</li>`).join('')}</ol></details>`;
@@ -418,7 +443,7 @@
   // installed userscript runs on this page (a tab opened before the install
   // doesn't get it).
   function recheck() {
-    if (attempt.get() === '1' && !active()) location.reload();
+    if (attempt.get() === '1' && (!active() || outdated())) location.reload();
   }
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') recheck(); });
   window.addEventListener('pageshow', (e) => { if (e.persisted) recheck(); });
