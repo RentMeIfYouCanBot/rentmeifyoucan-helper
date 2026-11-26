@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex">
 <meta name="referrer" content="no-referrer">
 <!-- The newest rentbot-helper.user.js @version: older scripts offer the update. -->
-<meta name="rentbot-helper-version" content="1.0.6">
+<meta name="rentbot-helper-version" content="1.0.7">
 <title>RentBot form helper</title>
 <style>
   :root {
@@ -117,6 +117,7 @@
       updateTitle: (v) => `🆕 Neue Helfer-Version ${v}`,
       updateText: (old) => `Installiert ist ${old}. Tippe auf „Aktualisieren“ und bestätige. Komm danach zurück, die Seite prüft es dann.`,
       updateBtn: 'Aktualisieren',
+      stuck: 'Nichts passiert? Im Browser von Telegram kann Violentmonkey sein Fenster nicht zeigen. Tippe oben rechts auf ⋮ → „In Firefox öffnen“ und dort noch einmal auf den Button. (Vielleicht wartet das Fenster auch schon in der Firefox-App.)',
       step: 'Schritt',
       later: 'kommt nach dem Schritt davor',
       noFirefox: 'Noch kein Firefox? <a href="https://play.google.com/store/apps/details?id=org.mozilla.firefox">Aus dem Play Store holen</a>, dann hier auf „In Firefox öffnen“ tippen.',
@@ -185,6 +186,7 @@
       updateTitle: (v) => `🆕 New helper version ${v}`,
       updateText: (old) => `You have ${old}. Tap “Update” and confirm. Then come back; the page checks it.`,
       updateBtn: 'Update',
+      stuck: 'Nothing happened? In Telegram’s browser, Violentmonkey can’t show its window. Tap ⋮ at the top right → “Open in Firefox” and tap the button again there. (The window may also be waiting in the Firefox app already.)',
       step: 'Step',
       later: 'comes after the step before',
       noFirefox: 'No Firefox yet? <a href="https://play.google.com/store/apps/details?id=org.mozilla.firefox">Get it from the Play Store</a>, then tap “Open in Firefox” here.',
@@ -224,6 +226,10 @@
 
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const active = () => document.documentElement.hasAttribute('data-rentbot-helper');
+  // Android: the install link opens in a new tab. In Telegram's browser (a
+  // Firefox custom tab) that may hand it to the full Firefox, where the
+  // script manager can show its install window.
+  const newTab = android ? ' target="_blank" rel="noopener"' : '';
   // The userscript marks the page with its version; the meta tag names the
   // newest one.
   const latest = (document.querySelector('meta[name="rentbot-helper-version"]') || {}).content || '';
@@ -239,7 +245,7 @@
   const outdated = () => active() && newer(latest, installedVersion());
   const updateCard = () => `<div class="card"><h2 style="margin-top:0">${t.updateTitle(esc(latest))}</h2>
     <p>${t.updateText(esc(installedVersion()))}</p>
-    <a class="btn primary" href="${esc(scriptURL)}" data-try>${t.updateBtn}</a></div>`;
+    <a class="btn primary" href="${esc(scriptURL)}"${newTab} data-try>${t.updateBtn}</a></div>`;
   const toast = (s) => {
     const el = document.getElementById('toast');
     el.textContent = s;
@@ -305,7 +311,28 @@
       attempt.set(null);
       rerender();
     }));
-    app.querySelectorAll('[data-try]').forEach((b) => b.addEventListener('click', () => attempt.set('1')));
+    app.querySelectorAll('[data-try]').forEach((b) => b.addEventListener('click', () => {
+      attempt.set('1');
+      if (android) stuckCheck(b);
+    }));
+  }
+
+  // stuckCheck: the script manager answers an install link with its own
+  // tab, which hides this page. In Telegram's browser (a Firefox custom tab)
+  // that tab can't show up and nothing seems to happen; if this page is
+  // still in front after a moment, say how to get to the full Firefox.
+  function stuckCheck(btn) {
+    let left = false;
+    const away = () => { left = true; };
+    document.addEventListener('visibilitychange', away, { once: true });
+    window.addEventListener('pagehide', away, { once: true });
+    setTimeout(() => {
+      if (left || document.visibilityState !== 'visible' || btn.nextElementSibling?.classList.contains('stuck')) return;
+      const d = document.createElement('div');
+      d.className = 'warn stuck';
+      d.innerHTML = `<p>${t.stuck}</p>`;
+      btn.after(d);
+    }, 2500);
   }
 
   // ---------- #f=… : fill a form ----------
@@ -433,7 +460,7 @@
     if (n === 'script') {
       const failed = attempt.get() === '2';
       return (failed ? `<div class="warn"><p>${t.fail[platform]}</p><button class="btn small" data-mgr="">${t.mgrBack}</button></div>` : '') +
-        `<a class="btn primary" href="${esc(scriptURL)}" data-try>${t.installBtn}</a>` +
+        `<a class="btn primary" href="${esc(scriptURL)}"${newTab} data-try>${t.installBtn}</a>` +
         (failed ? `<button class="btn" data-reload>${t.checkAgain}</button>` : '');
     }
     return '';
