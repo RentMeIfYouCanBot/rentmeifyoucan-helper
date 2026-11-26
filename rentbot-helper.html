@@ -37,6 +37,19 @@
   .answers button { all: unset; cursor: pointer; font-weight: 600; word-break: break-word; }
   .answers .self { color: var(--warn); font-style: italic; font-weight: 400; }
   .ok { background: var(--soft); }
+  .step h2 { display: flex; align-items: center; gap: 10px; margin: 0; }
+  .step p:first-of-type { margin-top: 10px; }
+  .step .num { flex: none; display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%;
+    font-size: 14px; background: var(--line); color: var(--text); }
+  .step.cur { border-color: var(--accent); }
+  .step.cur .num { background: var(--accent); color: var(--accent-text); }
+  .step.done .num { background: var(--soft); color: var(--accent); }
+  .step.done h2, .step.locked h2 { font-size: 15px; color: var(--muted); }
+  .step.locked { opacity: .6; }
+  .step.locked p { margin: 4px 0 0 36px; }
+  .btn.small { width: auto; display: inline-block; padding: 6px 12px; font-size: 14px; font-weight: 500; }
+  .warn { border-left: 3px solid var(--warn); padding: 2px 0 2px 12px; margin: 10px 0; }
+  .warn p { margin: 0 0 4px; }
   .spin { display: inline-block; width: 18px; height: 18px; margin-right: 8px; vertical-align: -3px;
     border: 3px solid var(--line); border-top-color: var(--accent); border-radius: 50%; animation: s .8s linear infinite; }
   @keyframes s { to { transform: rotate(360deg); } }
@@ -98,25 +111,38 @@
       installIntro: 'Der Helfer füllt Bewerbungsformulare (degewo, Gewobag, berlinovo, Stadt und Land, WBM, HOWOGE, GESOBAU) mit den Antworten aus deinem Profil aus. Du prüfst, löst das Captcha, wo es eins gibt, und sendest selbst ab. Einmal einrichten, etwa 2 Minuten.',
       installed: '✅ Der Helfer ist in diesem Browser installiert.',
       installBtn: '📲 Helfer installieren',
-      androidSteps: [
-        'Installiere <a href="https://play.google.com/store/apps/details?id=org.mozilla.firefox">Firefox</a>, falls du ihn noch nicht nutzt (Chrome kann keine Erweiterungen).',
-        'In Firefox: Menü ⋮ → Erweiterungen → <a href="https://addons.mozilla.org/android/addon/violentmonkey/">Violentmonkey</a> → Hinzufügen.',
-        'Öffne diese Seite in Firefox, tippe unten auf „Helfer installieren“ und bestätige mit „Installieren“.',
-        'Damit Telegram Links in Firefox öffnet: Firefox als Standardbrowser festlegen und in Telegram unter Einstellungen → Chat-Einstellungen den „In-App-Browser“ ausschalten.',
-        'Teste es im Bot: /helper → 🧪 Testen.'
-      ],
-      iosSteps: [
-        'Installiere die kostenlose App <a href="https://apps.apple.com/app/id1463298887">Userscripts</a> aus dem App Store.',
-        'Einstellungen-App → Apps → Safari → Erweiterungen → Userscripts: einschalten und „Alle Websites“ erlauben.',
-        'Öffne diese Seite in Safari und tippe auf „Helfer installieren“. Tippe dann in der Adressleiste auf das Erweiterungs-Symbol (ᴀA oder 🧩) → Userscripts → Installieren.',
-        'In Telegram: Einstellungen → Daten und Speicher (oder Chat-Einstellungen) → „Links öffnen in“ → Safari.',
-        'Teste es im Bot: /helper → 🧪 Testen.'
-      ],
-      desktopSteps: [
-        'Installiere die Browser-Erweiterung <a href="https://violentmonkey.github.io/">Violentmonkey</a> oder <a href="https://www.tampermonkey.net/">Tampermonkey</a>.',
-        'Tippe auf „Helfer installieren“ und bestätige.',
-        'Teste es im Bot: /helper → 🧪 Testen.'
-      ],
+      reinstall: 'Neu installieren',
+      step: 'Schritt',
+      later: 'kommt nach dem Schritt davor',
+      noFirefox: 'Noch kein Firefox? <a href="https://play.google.com/store/apps/details?id=org.mozilla.firefox">Aus dem Play Store holen</a>, dann hier auf „In Firefox öffnen“ tippen.',
+      getVM: 'Violentmonkey hinzufügen',
+      getUS: 'Userscripts aus dem App Store',
+      mgrDone: { android: '✓ Violentmonkey ist installiert', ios: '✓ Userscripts ist eingeschaltet', desktop: '✓ Die Erweiterung ist installiert' },
+      mgrBack: 'Zurück zum Schritt davor',
+      steps: {
+        android: [
+          ['Firefox', 'Der Helfer läuft in Firefox (Chrome kann keine Erweiterungen). Öffne diese Seite in Firefox.'],
+          ['Violentmonkey', 'In Firefox: Menü ⋮ → Erweiterungen → <a href="https://addons.mozilla.org/android/addon/violentmonkey/">Violentmonkey</a> → Hinzufügen. Ohne Violentmonkey zeigt der Installieren-Button nur Text an.'],
+          ['Helfer', 'Tippe auf „Helfer installieren“ und bestätige mit „Installieren“. Komm danach in diesen Tab zurück, er prüft dann selbst, ob es geklappt hat.'],
+          ['Telegram', 'Damit Telegram Links in Firefox öffnet: Firefox als Standardbrowser festlegen und in Telegram unter Einstellungen → Chat-Einstellungen den „In-App-Browser“ ausschalten. Dann im Bot testen: /helper → 🧪 Testen.']
+        ],
+        ios: [
+          ['Safari', 'Der Helfer läuft in Safari. Öffne diese Seite in Safari.'],
+          ['Userscripts', 'Installiere die kostenlose App <a href="https://apps.apple.com/app/id1463298887">Userscripts</a>. Dann: Einstellungen-App → Apps → Safari → Erweiterungen → Userscripts: einschalten und „Alle Websites“ erlauben.'],
+          ['Helfer', 'Tippe auf „Helfer installieren“. Tippe dann in der Adressleiste auf das Erweiterungs-Symbol (ᴀA oder 🧩) → Userscripts → Installieren. Geh danach zurück zu dieser Seite, sie prüft dann selbst, ob es geklappt hat.'],
+          ['Telegram', 'In Telegram: Einstellungen → Daten und Speicher (oder Chat-Einstellungen) → „Links öffnen in“ → Safari. Dann im Bot testen: /helper → 🧪 Testen.']
+        ],
+        desktop: [
+          ['Erweiterung', 'Installiere die Browser-Erweiterung <a href="https://violentmonkey.github.io/">Violentmonkey</a> oder <a href="https://www.tampermonkey.net/">Tampermonkey</a>. Ohne sie zeigt der Installieren-Button nur Text an.'],
+          ['Helfer', 'Klicke auf „Helfer installieren“ und bestätige. Komm danach in diesen Tab zurück, er prüft dann selbst, ob es geklappt hat.'],
+          ['Testen', 'Teste es im Bot: /helper → 🧪 Testen.']
+        ]
+      },
+      fail: {
+        android: 'Der Helfer ist noch nicht aktiv. Kam statt „Installieren“ nur eine Seite voller Text? Dann fehlt Violentmonkey in diesem Firefox oder es ist ausgeschaltet (Menü ⋮ → Erweiterungen).',
+        ios: 'Der Helfer ist noch nicht aktiv. Hast du auf der Textseite über das Erweiterungs-Symbol → Userscripts auf „Installieren“ getippt? Ist Userscripts für „Alle Websites“ erlaubt?',
+        desktop: 'Der Helfer ist noch nicht aktiv. Kam statt „Installieren“ nur eine Seite voller Text? Dann fehlt die Erweiterung in diesem Browser oder sie ist ausgeschaltet.'
+      },
       other: 'Andere Geräte',
       privacy: 'Deine Antworten stehen nur im Link (hinter dem #) und werden an keinen Server geschickt. Der Helfer schickt nie etwas ab.'
     },
@@ -150,25 +176,38 @@
       installIntro: 'The helper fills in application forms (degewo, Gewobag, berlinovo, Stadt und Land, WBM, HOWOGE, GESOBAU) with the answers from your profile. You check them, solve the captcha where there is one, and send yourself. Set it up once, about 2 minutes.',
       installed: '✅ The helper is installed in this browser.',
       installBtn: '📲 Install the helper',
-      androidSteps: [
-        'Install <a href="https://play.google.com/store/apps/details?id=org.mozilla.firefox">Firefox</a> if you don’t use it yet (Chrome can’t run extensions).',
-        'In Firefox: menu ⋮ → Extensions → <a href="https://addons.mozilla.org/android/addon/violentmonkey/">Violentmonkey</a> → Add.',
-        'Open this page in Firefox, tap “Install the helper” below and confirm with “Install”.',
-        'So that Telegram opens links in Firefox: make Firefox your default browser, and in Telegram turn off Settings → Chat Settings → “In-App Browser”.',
-        'Test it in the bot: /helper → 🧪 Test.'
-      ],
-      iosSteps: [
-        'Install the free app <a href="https://apps.apple.com/app/id1463298887">Userscripts</a> from the App Store.',
-        'Settings app → Apps → Safari → Extensions → Userscripts: turn it on and allow “All Websites”.',
-        'Open this page in Safari and tap “Install the helper”. Then tap the extensions icon in the address bar (ᴀA or 🧩) → Userscripts → Install.',
-        'In Telegram: Settings → Data and Storage (or Chat Settings) → “Open Links in” → Safari.',
-        'Test it in the bot: /helper → 🧪 Test.'
-      ],
-      desktopSteps: [
-        'Install the browser extension <a href="https://violentmonkey.github.io/">Violentmonkey</a> or <a href="https://www.tampermonkey.net/">Tampermonkey</a>.',
-        'Tap “Install the helper” and confirm.',
-        'Test it in the bot: /helper → 🧪 Test.'
-      ],
+      reinstall: 'Install again',
+      step: 'Step',
+      later: 'comes after the step before',
+      noFirefox: 'No Firefox yet? <a href="https://play.google.com/store/apps/details?id=org.mozilla.firefox">Get it from the Play Store</a>, then tap “Open in Firefox” here.',
+      getVM: 'Add Violentmonkey',
+      getUS: 'Userscripts in the App Store',
+      mgrDone: { android: '✓ Violentmonkey is installed', ios: '✓ Userscripts is turned on', desktop: '✓ The extension is installed' },
+      mgrBack: 'Back to the step before',
+      steps: {
+        android: [
+          ['Firefox', 'The helper runs in Firefox (Chrome can’t run extensions). Open this page in Firefox.'],
+          ['Violentmonkey', 'In Firefox: menu ⋮ → Extensions → <a href="https://addons.mozilla.org/android/addon/violentmonkey/">Violentmonkey</a> → Add. Without Violentmonkey, the install button only shows text.'],
+          ['Helper', 'Tap “Install the helper” and confirm with “Install”. Then come back to this tab; it checks by itself whether it worked.'],
+          ['Telegram', 'So that Telegram opens links in Firefox: make Firefox your default browser, and in Telegram turn off Settings → Chat Settings → “In-App Browser”. Then test it in the bot: /helper → 🧪 Test.']
+        ],
+        ios: [
+          ['Safari', 'The helper runs in Safari. Open this page in Safari.'],
+          ['Userscripts', 'Install the free app <a href="https://apps.apple.com/app/id1463298887">Userscripts</a>. Then: Settings app → Apps → Safari → Extensions → Userscripts: turn it on and allow “All Websites”.'],
+          ['Helper', 'Tap “Install the helper”. Then tap the extensions icon in the address bar (ᴀA or 🧩) → Userscripts → Install. Then go back to this page; it checks by itself whether it worked.'],
+          ['Telegram', 'In Telegram: Settings → Data and Storage (or Chat Settings) → “Open Links in” → Safari. Then test it in the bot: /helper → 🧪 Test.']
+        ],
+        desktop: [
+          ['Extension', 'Install the browser extension <a href="https://violentmonkey.github.io/">Violentmonkey</a> or <a href="https://www.tampermonkey.net/">Tampermonkey</a>. Without it, the install button only shows text.'],
+          ['Helper', 'Click “Install the helper” and confirm. Then come back to this tab; it checks by itself whether it worked.'],
+          ['Test', 'Test it in the bot: /helper → 🧪 Test.']
+        ]
+      },
+      fail: {
+        android: 'The helper isn’t active yet. Did you get a page full of text instead of “Install”? Then Violentmonkey is missing in this Firefox, or turned off (menu ⋮ → Extensions).',
+        ios: 'The helper isn’t active yet. On the text page, did you tap the extensions icon → Userscripts → “Install”? Is Userscripts allowed on “All Websites”?',
+        desktop: 'The helper isn’t active yet. Did you get a page full of text instead of “Install”? Then the extension is missing in this browser, or turned off.'
+      },
       other: 'Other devices',
       privacy: 'Your answers are only in the link (after the #) and are never sent to a server. The helper never sends anything.'
     }
@@ -237,6 +276,12 @@
     app.innerHTML = html;
     app.querySelectorAll('[data-copy]').forEach((b) => b.addEventListener('click', () => copy(b.getAttribute('data-copy'))));
     app.querySelectorAll('[data-reload]').forEach((b) => b.addEventListener('click', () => location.reload()));
+    app.querySelectorAll('[data-mgr]').forEach((b) => b.addEventListener('click', () => {
+      ls.set('rbh-mgr', b.getAttribute('data-mgr') || null);
+      attempt.set(null);
+      rerender();
+    }));
+    app.querySelectorAll('[data-try]').forEach((b) => b.addEventListener('click', () => attempt.set('1')));
   }
 
   // ---------- #f=… : fill a form ----------
@@ -282,33 +327,105 @@
   // ---------- #test : is the userscript running here? ----------
   function test() {
     const bot = (hash.get('b') || '').replace(/[^\w]/g, '');
+    rerender = test;
     whenChecked((ok) => {
       if (ok) {
+        attempt.set(null);
         render(`<div class="card ok"><h1 style="margin-top:0">${t.testOk}</h1><p>${t.testOkText}</p>
           ${bot ? `<a class="btn primary" href="https://t.me/${bot}?start=helper">${t.back}</a>` : ''}</div>`);
         return;
       }
       render(`<h1>${t.testNo}</h1><p>${t.testNoText}</p>${browserButtons()}
         <button class="btn" data-reload>${t.checkAgain}</button>${tip()}
-        <h2>${t.install}</h2>${installSteps(false)}`);
+        <h2>${t.install}</h2>${installSteps()}`);
     });
   }
 
   // ---------- install instructions ----------
-  function installSteps(showDone) {
-    const steps = android ? t.androidSteps : ios ? t.iosSteps : t.desktopSteps;
-    let h = showDone && active() ? `<div class="card ok">${t.installed}</div>` : '';
-    h += `<div class="card"><ol>${steps.map((s) => `<li>${s}</li>`).join('')}</ol>
-      <a class="btn primary" href="${esc(scriptURL)}">${t.installBtn}</a></div>`;
+  // A page can't see which extensions a browser has, so the install button
+  // only shows once the steps before it are done: the right browser (from the
+  // user agent) and the script manager (the user confirms it, remembered in
+  // localStorage). Whether the install worked is checked for real: after the
+  // button, coming back to this page reloads it once, and the userscript
+  // marks it if it runs.
+  const platform = android ? 'android' : ios ? 'ios' : 'desktop';
+  const firefox = /Firefox\//.test(ua);
+  const safari = /Safari\//.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS|GSA\//.test(ua);
+  const ls = {
+    get: (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set: (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) {} }
+  };
+  // Install attempt: '1' = button tapped, '2' = came back, still not active.
+  const attempt = {
+    get: () => { try { return sessionStorage.getItem('rbh-try'); } catch (e) { return null; } },
+    set: (v) => { try { v == null ? sessionStorage.removeItem('rbh-try') : sessionStorage.setItem('rbh-try', v); } catch (e) {} }
+  };
+  let rerender = () => {};
+
+  function installSteps() {
+    const ok = active();
+    const steps = t.steps[platform];
+    // What each step needs; the last one is never "done".
+    const needs = platform === 'desktop' ? ['mgr', 'script', 'end'] : ['browser', 'mgr', 'script', 'end'];
+    const done = (n) => n !== 'end' && (ok || (n === 'browser' ? (android ? firefox : safari)
+      : n === 'mgr' ? ls.get('rbh-mgr') === '1' : false));
+    let cur = needs.findIndex((n) => !done(n));
+    if (ok) attempt.set(null);
+    else if (attempt.get()) attempt.set('2');
+    let h = ok ? `<div class="card ok">${t.installed}</div>` : '';
+    steps.forEach(([title, body], i) => {
+      const n = needs[i];
+      const state = i < cur ? 'done' : i === cur ? 'cur' : 'locked';
+      h += `<div class="card step ${state}"><h2><span class="num">${state === 'done' ? '✓' : i + 1}</span>${title}</h2>`;
+      if (state === 'locked') h += `<p class="muted">${t.later}</p>`;
+      if (state === 'cur') h += `<p>${body}</p>` + actions(n);
+      if (state === 'done' && n === 'mgr' && !ok && attempt.get() !== '2') h += `<button class="btn small" data-mgr="">${t.mgrBack}</button>`;
+      h += '</div>';
+    });
+    if (ok) h += `<a class="btn" href="${esc(scriptURL)}">${t.reinstall}</a>`;
     if (android || ios) {
-      const other = android ? t.iosSteps : t.androidSteps;
-      h += `<details class="card"><summary>${t.other} (${android ? 'iPhone / iPad' : 'Android'})</summary><ol>${other.map((s) => `<li>${s}</li>`).join('')}</ol></details>`;
+      const other = t.steps[android ? 'ios' : 'android'];
+      h += `<details class="card"><summary>${t.other} (${android ? 'iPhone / iPad' : 'Android'})</summary><ol>${other.map(([title, body]) => `<li><b>${title}:</b> ${body}</li>`).join('')}</ol></details>`;
     }
     return h;
   }
 
+  function actions(n) {
+    const here = location.host + location.pathname + location.search + location.hash;
+    if (n === 'browser' && android) {
+      return `<a class="btn primary" href="intent://${esc(here)}#Intent;scheme=https;package=org.mozilla.firefox;end">${t.inFirefox}</a>
+        <p class="muted">${t.noFirefox}</p>`;
+    }
+    if (n === 'browser') {
+      return `<a class="btn primary" href="x-safari-https://${esc(here)}">${t.inSafari}</a>
+        <button class="btn" data-copy="${esc(location.href)}">${t.copyLink}</button>`;
+    }
+    if (n === 'mgr') {
+      const get = android ? `<a class="btn" href="https://addons.mozilla.org/android/addon/violentmonkey/">${t.getVM}</a>`
+        : ios ? `<a class="btn" href="https://apps.apple.com/app/id1463298887">${t.getUS}</a>` : '';
+      return `${get}<button class="btn primary" data-mgr="1">${t.mgrDone[platform]}</button>`;
+    }
+    if (n === 'script') {
+      const failed = attempt.get() === '2';
+      return (failed ? `<div class="warn"><p>${t.fail[platform]}</p><button class="btn small" data-mgr="">${t.mgrBack}</button></div>` : '') +
+        `<a class="btn primary" href="${esc(scriptURL)}" data-try>${t.installBtn}</a>` +
+        (failed ? `<button class="btn" data-reload>${t.checkAgain}</button>` : '');
+    }
+    return '';
+  }
+
+  // Coming back after the install button: reload once so a freshly
+  // installed userscript runs on this page (a tab opened before the install
+  // doesn't get it).
+  function recheck() {
+    if (attempt.get() === '1' && !active()) location.reload();
+  }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') recheck(); });
+  window.addEventListener('pageshow', (e) => { if (e.persisted) recheck(); });
+
   function install() {
-    whenChecked(() => render(`<h1>${t.installTitle}</h1><p>${t.installIntro}</p>${installSteps(true)}<p class="muted">${t.privacy}</p>`));
+    rerender = install;
+    whenChecked(() => render(`<h1>${t.installTitle}</h1><p>${t.installIntro}</p>${installSteps()}<p class="muted">${t.privacy}</p>`));
   }
 
   document.documentElement.lang = lang;
