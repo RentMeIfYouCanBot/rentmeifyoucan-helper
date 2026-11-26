@@ -2,13 +2,14 @@
 // @name           RentBot form helper
 // @name:de        RentBot Formular-Helfer
 // @namespace      rentmeifyoucan
-// @version        1.0.3
+// @version        1.0.4
 // @description    Fills in flat application forms with the answers from your RentBot in Telegram. You check them, solve the captcha and send.
 // @description:de Füllt Bewerbungsformulare mit den Antworten aus deinem RentBot in Telegram aus. Du prüfst, löst das Captcha und sendest.
 // @match          https://*/*rentbot-helper.html*
 // @match          https://app.wohnungshelden.de/*
 // @match          https://www.degewo.de/*
 // @match          https://www.wbm.de/*
+// @match          https://www.howoge.de/*
 // @grant          GM.getValue
 // @grant          GM.setValue
 // @grant          GM.deleteValue
@@ -30,7 +31,7 @@
 async function main() {
   if (window.top !== window) return;
 
-  const VERSION = '1.0.3';
+  const VERSION = '1.0.4';
   const KEY = 'fill';
   const MAX_AGE = 2 * 3600e3; // stored answers are used for this long
 
@@ -79,7 +80,7 @@ async function main() {
   await sleep(1500);
   const formPage =
     /^\/public\/listings\/.+\/application/.test(location.pathname) ||
-    document.querySelector('form[id^="form_apartment_inquiry"], form.powermail_form');
+    document.querySelector('form[id^="form_apartment_inquiry"], form.powermail_form, form#show-visit-form');
   if (!formPage) return;
   const lang = fresh ? rec.p.l : (navigator.language || '').slice(0, 2);
   const f = new Filler({ l: lang, a: [] });
@@ -104,7 +105,8 @@ async function main() {
   }
 
   // formKey identifies a form page: host and path (the query and the
-  // fragment can differ, e.g. an anchor to the form).
+  // fragment can differ, e.g. an anchor to the form). HOWOGE has one page
+  // for all offers: there the offer id counts too.
   function formKey(u) {
     try {
       const x = new URL(u);
@@ -112,7 +114,8 @@ async function main() {
       try {
         path = decodeURIComponent(path);
       } catch (e) {}
-      return x.host + path.replace(/\/+$/, '');
+      const obid = x.searchParams.get('tx_howrealestate_visitform[obid]');
+      return x.host + path.replace(/\/+$/, '') + (obid ? '?obid=' + obid : '');
     } catch (e) {
       return '';
     }
@@ -245,6 +248,7 @@ class Filler {
         }
       }
       if (this.answers.every((a) => a.done || !a.value)) break;
+      if (await this.next()) progress = true;
       idle = progress ? 0 : idle + 300;
       // Fields can appear after others are answered (or the app loads late).
       if (idle > (seen ? 3000 : 15000)) break;
@@ -265,7 +269,7 @@ class Filler {
   locate(a) {
     let els = a.key ? this.byKey(a.key) : [];
     if (!els.length) els = this.byLabel(a.label);
-    els = els.filter((e) => shown(e.type === 'radio' || e.type === 'checkbox' ? e.closest('label') || e : e));
+    els = els.filter((e) => shown(e.type === 'radio' || e.type === 'checkbox' ? labelOf(e) : e));
     if (els.length && els[0].type === 'radio' && els[0].name) {
       const group = [...document.getElementsByName(els[0].name)].filter((e) => e.type === 'radio');
       if (group.length) return group;
@@ -365,7 +369,7 @@ class Filler {
   // libraries (ng-zorro) handle the click on the surrounding label.
   async tick(el, on) {
     if (el.checked === on) return true;
-    (el.closest('label') || el).click();
+    labelOf(el).click();
     await waitFor(() => el.checked === on, 400);
     if (el.checked !== on) {
       el.click();
@@ -421,10 +425,26 @@ class Filler {
     return true;
   }
 
+  // next goes on to the next step of a form in steps (HOWOGE: three notes
+  // to confirm, then the contact form) once the helper has filled in
+  // everything in the current step. Steps that ask anything else are left
+  // to the user.
+  async next() {
+    const step = document.querySelector('.tour-registration-process .step-content.show');
+    const button = step && step.querySelector('[data-process-next]');
+    if (!button || !shown(button)) return false;
+    const filled = new Set();
+    for (const a of this.answers) if (a.done) this.locate(a).forEach((e) => filled.add(e));
+    const controls = [...step.querySelectorAll('input, select, textarea')].filter((e) => e.type !== 'hidden');
+    if (!controls.length || !controls.every((e) => filled.has(e))) return false;
+    button.click();
+    return !!(await waitFor(() => !step.classList.contains('show'), 1500));
+  }
+
   mark(el, how) {
     const box =
       el.closest('ng-select, .ng-select, nz-select, .ant-select, nz-radio-group, .ant-radio-group, [role=radiogroup], .ant-checkbox-wrapper') ||
-      (el.type === 'radio' || el.type === 'checkbox' ? el.closest('label') || el : el);
+      (el.type === 'radio' || el.type === 'checkbox' ? labelOf(el) : el);
     box.style.outline = `2px solid ${how === 'ok' ? '#2e9d5b' : '#e08a00'}`;
     box.style.outlineOffset = '2px';
     box.style.borderRadius = box.style.borderRadius || '4px';
@@ -526,6 +546,12 @@ class Filler {
     </style><button>✍️ RentBot</button>`;
     this.root.querySelector('button').addEventListener('click', () => this.badge(...this.last));
   }
+}
+
+// labelOf is what shows a radio button or checkbox: its label (around it
+// or linked with for=), else the control itself.
+function labelOf(el) {
+  return el.closest('label') || (el.labels && el.labels[0]) || el;
 }
 
 // openDetails unfolds the collapsed sections (<details>) around el, e.g.
