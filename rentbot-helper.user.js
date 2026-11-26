@@ -2,7 +2,7 @@
 // @name           RentBot form helper
 // @name:de        RentBot Formular-Helfer
 // @namespace      rentmeifyoucan
-// @version        1.0.4
+// @version        1.0.5
 // @description    Fills in flat application forms with the answers from your RentBot in Telegram. You check them, solve the captcha and send.
 // @description:de Füllt Bewerbungsformulare mit den Antworten aus deinem RentBot in Telegram aus. Du prüfst, löst das Captcha und sendest.
 // @match          https://*/*rentbot-helper.html*
@@ -10,6 +10,7 @@
 // @match          https://www.degewo.de/*
 // @match          https://www.wbm.de/*
 // @match          https://www.howoge.de/*
+// @match          https://tenant.immomio.com/*
 // @grant          GM.getValue
 // @grant          GM.setValue
 // @grant          GM.deleteValue
@@ -31,7 +32,7 @@
 async function main() {
   if (window.top !== window) return;
 
-  const VERSION = '1.0.4';
+  const VERSION = '1.0.5';
   const KEY = 'fill';
   const MAX_AGE = 2 * 3600e3; // stored answers are used for this long
 
@@ -106,7 +107,8 @@ async function main() {
 
   // formKey identifies a form page: host and path (the query and the
   // fragment can differ, e.g. an anchor to the form). HOWOGE has one page
-  // for all offers: there the offer id counts too.
+  // for all offers: there the offer id counts too. Immomio adds the
+  // language to the path (/apply/… → /de/apply/…).
   function formKey(u) {
     try {
       const x = new URL(u);
@@ -114,6 +116,7 @@ async function main() {
       try {
         path = decodeURIComponent(path);
       } catch (e) {}
+      if (x.host === 'tenant.immomio.com') path = path.replace(/^\/[a-z]{2}(?=\/)/, '');
       const obid = x.searchParams.get('tx_howrealestate_visitform[obid]');
       return x.host + path.replace(/\/+$/, '') + (obid ? '?obid=' + obid : '');
     } catch (e) {
@@ -183,6 +186,11 @@ const TEXT = {
     otherHint: 'Tippe im Bot noch einmal auf ✍️ für dieses Angebot.',
     forPage: 'Antworten für:',
     thisPage: 'Diese Seite:',
+    immomio: '✍️ RentBot: Bewerbung über Immomio',
+    immomioHint:
+      'Tippe unten auf „Jetzt bewerben“. Mit Immomio-Konto bewirbst du dich damit. Ohne Konto öffnet sich die Registrierung: RentBot trägt Name und E-Mail ein, du wählst nur ein Passwort.',
+    toApply: 'Zu „Jetzt bewerben“',
+    immomioDone: 'Wähle ein Passwort und registriere dich, dann geht es mit der Bewerbung weiter. Schon ein Konto? Melde dich dort stattdessen an.',
   },
   en: {
     filling: '✍️ RentBot is filling in the form…',
@@ -200,6 +208,11 @@ const TEXT = {
     otherHint: 'Tap ✍️ for this offer in the bot again.',
     forPage: 'Answers for:',
     thisPage: 'This page:',
+    immomio: '✍️ RentBot: applying via Immomio',
+    immomioHint:
+      "Tap “Jetzt bewerben” below. With an Immomio account, that applies. Without one, the sign-up opens: RentBot fills in your name and email, you only choose a password.",
+    toApply: 'To “Jetzt bewerben”',
+    immomioDone: 'Choose a password and sign up, then the application goes on. Already have an account? Log in there instead.',
   },
 };
 
@@ -220,11 +233,21 @@ class Filler {
   }
 
   async run() {
-    this.badge(this.t.filling, []);
+    // Immomio (GESOBAU): the form is its sign-up, which opens only when a
+    // user without a session taps "Jetzt bewerben" (with a session that
+    // applies, and the app moves on). So wait for the user, up to 20 min.
+    const immomio = location.host === 'tenant.immomio.com';
+    const limit = immomio ? 20 * 60e3 : 30000;
+    if (immomio) this.badge(this.t.immomio, [this.t.immomioHint], [[this.t.toApply, () => this.toApply()]]);
+    else this.badge(this.t.filling, []);
     const start = Date.now();
     let idle = 0;
     let seen = false;
-    while (Date.now() - start < 30000) {
+    while (Date.now() - start < limit) {
+      if (immomio && !/\/apply\//.test(location.pathname)) {
+        if (this.host) this.host.remove(); // applied with a session
+        return;
+      }
       let progress = false;
       for (const a of this.answers) {
         if (a.done) continue;
@@ -251,9 +274,10 @@ class Filler {
       if (await this.next()) progress = true;
       idle = progress ? 0 : idle + 300;
       // Fields can appear after others are answered (or the app loads late).
-      if (idle > (seen ? 3000 : 15000)) break;
+      if (idle > (seen ? 3000 : immomio ? limit : 15000)) break;
       await wait(300);
     }
+    if (immomio && !seen) return; // never signed up here: leave the hint
     // Fields to fill in yourself may have appeared last.
     for (const a of this.answers) {
       if (!a.value) {
@@ -450,6 +474,14 @@ class Filler {
     box.style.borderRadius = box.style.borderRadius || '4px';
   }
 
+  // toApply scrolls to Immomio's "Jetzt bewerben" button.
+  toApply() {
+    const b = [...document.querySelectorAll('button')].find((e) => norm(e.textContent) === 'jetzt bewerben' && shown(e));
+    if (!b) return;
+    this.minimize();
+    b.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
   captcha() {
     return document.querySelector(
       '.frc-captcha, iframe[title*="reCAPTCHA"], .g-recaptcha, iframe[src*="challenges.cloudflare.com"], .cf-turnstile, [data-sitekey]'
@@ -469,6 +501,13 @@ class Filler {
     }
     if (yourself.length) lines.push(t.yourself, ...yourself.map((s) => '• ' + clip(s)));
     if (missed.length) lines.push(t.missed, ...missed.map((s) => '• ' + clip(s)));
+    if (location.host === 'tenant.immomio.com') {
+      // The sign-up: the captcha was on "Jetzt bewerben". The box is
+      // shrunk after a moment, out of the way of the password field.
+      this.badge(t.filled(done.length, want.length), [...lines, t.immomioDone]);
+      setTimeout(() => this.minimize(), 6000);
+      return;
+    }
     // reCAPTCHA loads after the form.
     const cap = await waitFor(() => this.captcha(), 3000);
     lines.push(cap ? t.then : t.thenNoCaptcha);
