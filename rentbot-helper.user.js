@@ -2,7 +2,7 @@
 // @name           RentBot form helper
 // @name:de        RentBot Formular-Helfer
 // @namespace      rentmeifyoucan
-// @version        1.0.7
+// @version        1.0.8
 // @description    Fills in flat application forms with the answers from your RentBot in Telegram. You check them, solve the captcha and send.
 // @description:de Füllt Bewerbungsformulare mit den Antworten aus deinem RentBot in Telegram aus. Du prüfst, löst das Captcha und sendest.
 // @match          https://*/*rentbot-helper.html*
@@ -32,7 +32,7 @@
 async function main() {
   if (window.top !== window) return;
 
-  const VERSION = '1.0.7';
+  const VERSION = '1.0.8';
   const KEY = 'fill';
   const MAX_AGE = 2 * 3600e3; // stored answers are used for this long
 
@@ -211,8 +211,8 @@ const TEXT = {
     close: 'Schließen',
     update: (v) => `🆕 Es gibt eine neue Helfer-Version (${v}). Tippe auf „Aktualisieren“ und bestätige, deine Eingaben hier bleiben.`,
     updateBtn: 'Aktualisieren',
-    updateStuck:
-      '🆕 Nichts passiert? Im Browser von Telegram kann Violentmonkey sein Fenster nicht zeigen. Tippe oben rechts auf ⋮ → „In Firefox öffnen“ und dort noch einmal auf „Aktualisieren“. RentBot füllt das Formular dort neu aus.',
+    updateAndroid: (v) =>
+      `🆕 Es gibt eine neue Helfer-Version (${v}). Zum Aktualisieren erst oben rechts ⋮ → „In Firefox öffnen“ (im Browser von Telegram geht es nicht), dann dort auf „Aktualisieren“. RentBot füllt das Formular in Firefox neu aus.`,
     none: 'RentBot hat hier kein Formular gefunden. Ist das Angebot noch offen?',
     noAnswers: 'RentBot: keine Antworten für dieses Formular',
     noAnswersHint: 'Öffne Formulare über ✍️ Formular ausfüllen im Bot, dann füllt der Helfer sie aus.',
@@ -237,8 +237,8 @@ const TEXT = {
     close: 'Close',
     update: (v) => `🆕 There is a new helper version (${v}). Tap “Update” and confirm; what you entered here stays.`,
     updateBtn: 'Update',
-    updateStuck:
-      '🆕 Nothing happened? In Telegram’s browser, Violentmonkey can’t show its window. Tap ⋮ at the top right → “Open in Firefox” and tap “Update” again there. RentBot fills in the form again there.',
+    updateAndroid: (v) =>
+      `🆕 There is a new helper version (${v}). To update, first tap ⋮ at the top right → “Open in Firefox” (it doesn’t work in Telegram’s browser), then “Update” there. RentBot fills in the form again in Firefox.`,
     none: "RentBot didn't find the form here. Is the offer still open?",
     noAnswers: 'RentBot: no answers for this form',
     noAnswersHint: 'Open forms with ✍️ Fill in form in the bot, then the helper fills them in.',
@@ -583,22 +583,13 @@ class Filler {
     // A newer script is out: say so in every box, with a button that opens
     // the install link in a new tab (this one keeps the filled form).
     const up = this.update;
-    // In Telegram's browser (a Firefox custom tab) the manager's update tab
-    // can't show up: if this page is still in front after a moment, say how
-    // to get to the full Firefox.
+    // On Android it first says how to get out of Telegram's browser (a
+    // Firefox custom tab): there the manager can't show its window and the
+    // new tab stays blank.
     if (up && up.v && /^https:\/\//.test(up.url)) {
-      lines = [...lines, this.updateStuck ? this.t.updateStuck : this.t.update(up.v)];
-      buttons = [...buttons, [this.t.updateBtn, () => {
-        window.open(up.url, '_blank');
-        if (!/Android/i.test(navigator.userAgent)) return;
-        let left = false;
-        document.addEventListener('visibilitychange', () => (left = true), { once: true });
-        setTimeout(() => {
-          if (left || document.visibilityState !== 'visible' || !this.host.isConnected) return;
-          this.updateStuck = true;
-          this.badge(...this.last);
-        }, 2500);
-      }]];
+      const android = /Android/i.test(navigator.userAgent);
+      lines = [...lines, android ? this.t.updateAndroid(up.v) : this.t.update(up.v)];
+      buttons = [...buttons, [this.t.updateBtn, () => window.open(up.url, '_blank')]];
     }
     const box = document.createElement('div');
     box.className = 'b';

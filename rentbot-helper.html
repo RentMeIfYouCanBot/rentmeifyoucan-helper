@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex">
 <meta name="referrer" content="no-referrer">
 <!-- The newest rentbot-helper.user.js @version: older scripts offer the update. -->
-<meta name="rentbot-helper-version" content="1.0.7">
+<meta name="rentbot-helper-version" content="1.0.8">
 <title>RentBot form helper</title>
 <style>
   :root {
@@ -117,6 +117,8 @@
       updateTitle: (v) => `🆕 Neue Helfer-Version ${v}`,
       updateText: (old) => `Installiert ist ${old}. Tippe auf „Aktualisieren“ und bestätige. Komm danach zurück, die Seite prüft es dann.`,
       updateBtn: 'Aktualisieren',
+      fromTelegram: 'Aus Telegram geöffnet? Dann erst in die Firefox-App wechseln: oben rechts ⋮ → „In Firefox öffnen“ (oder der Button hier). Im Browser von Telegram kann Violentmonkey sein Fenster nicht zeigen.',
+      inFirefoxApp: 'In der Firefox-App öffnen',
       stuck: 'Nichts passiert? Im Browser von Telegram kann Violentmonkey sein Fenster nicht zeigen. Tippe oben rechts auf ⋮ → „In Firefox öffnen“ und dort noch einmal auf den Button. (Vielleicht wartet das Fenster auch schon in der Firefox-App.)',
       step: 'Schritt',
       later: 'kommt nach dem Schritt davor',
@@ -186,6 +188,8 @@
       updateTitle: (v) => `🆕 New helper version ${v}`,
       updateText: (old) => `You have ${old}. Tap “Update” and confirm. Then come back; the page checks it.`,
       updateBtn: 'Update',
+      fromTelegram: 'Opened from Telegram? Then first switch to the Firefox app: ⋮ at the top right → “Open in Firefox” (or the button here). In Telegram’s browser, Violentmonkey can’t show its window.',
+      inFirefoxApp: 'Open in the Firefox app',
       stuck: 'Nothing happened? In Telegram’s browser, Violentmonkey can’t show its window. Tap ⋮ at the top right → “Open in Firefox” and tap the button again there. (The window may also be waiting in the Firefox app already.)',
       step: 'Step',
       later: 'comes after the step before',
@@ -226,10 +230,17 @@
 
   const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const active = () => document.documentElement.hasAttribute('data-rentbot-helper');
-  // Android: the install link opens in a new tab. In Telegram's browser (a
-  // Firefox custom tab) that may hand it to the full Firefox, where the
-  // script manager can show its install window.
-  const newTab = android ? ' target="_blank" rel="noopener"' : '';
+  // Android: in Telegram's browser (a Firefox custom tab) the script
+  // manager can't show its install window (a new tab stays in Telegram and
+  // stays blank), and the page can't tell it is in one. So before the
+  // install button: how to get to the Firefox app, plus an intent link that
+  // may do it in one tap.
+  const fromTelegram = () => {
+    if (!android) return '';
+    const here = location.host + location.pathname + location.search + location.hash;
+    return `<p class="muted">${t.fromTelegram}</p>
+      <a class="btn" href="intent://${esc(here)}#Intent;scheme=https;package=org.mozilla.firefox;end">${t.inFirefoxApp}</a>`;
+  };
   // The userscript marks the page with its version; the meta tag names the
   // newest one.
   const latest = (document.querySelector('meta[name="rentbot-helper-version"]') || {}).content || '';
@@ -244,8 +255,8 @@
   };
   const outdated = () => active() && newer(latest, installedVersion());
   const updateCard = () => `<div class="card"><h2 style="margin-top:0">${t.updateTitle(esc(latest))}</h2>
-    <p>${t.updateText(esc(installedVersion()))}</p>
-    <a class="btn primary" href="${esc(scriptURL)}"${newTab} data-try>${t.updateBtn}</a></div>`;
+    <p>${t.updateText(esc(installedVersion()))}</p>${fromTelegram()}
+    <a class="btn primary" href="${esc(scriptURL)}" data-try>${t.updateBtn}</a></div>`;
   const toast = (s) => {
     const el = document.getElementById('toast');
     el.textContent = s;
@@ -460,7 +471,7 @@
     if (n === 'script') {
       const failed = attempt.get() === '2';
       return (failed ? `<div class="warn"><p>${t.fail[platform]}</p><button class="btn small" data-mgr="">${t.mgrBack}</button></div>` : '') +
-        `<a class="btn primary" href="${esc(scriptURL)}"${newTab} data-try>${t.installBtn}</a>` +
+        fromTelegram() + `<a class="btn primary" href="${esc(scriptURL)}" data-try>${t.installBtn}</a>` +
         (failed ? `<button class="btn" data-reload>${t.checkAgain}</button>` : '');
     }
     return '';
