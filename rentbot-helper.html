@@ -97,7 +97,7 @@
       openForm: 'Formular ohne Helfer öffnen',
       yourself: 'selbst ausfüllen',
       tipTitle: 'Damit es jedes Mal klappt',
-      tipAndroid: 'In Telegram: Einstellungen → Chat-Einstellungen → „In-App-Browser“ ausschalten. Dann öffnen Links in deinem Standardbrowser (mach Firefox dazu: Android-Einstellungen → Apps → Standard-Apps → Browser).',
+      tipAndroid: 'Mach Firefox zu deinem Standardbrowser (Android-Einstellungen → Apps → Standard-Apps → Browser). Dann öffnet Telegram Links in Firefox, auch im eigenen Browser von Telegram, und der Helfer läuft dort. Klappt es trotzdem nicht: in Telegram unter Einstellungen → Chat-Einstellungen den „In-App-Browser“ ausschalten.',
       tipIOS: 'In Telegram: Einstellungen → Daten und Speicher (oder Chat-Einstellungen) → „Links öffnen in“ → Safari.',
       tipOther: 'Stell Telegram so ein, dass Links in deinem normalen Browser öffnen, nicht im Telegram-Browser.',
       install: 'Helfer installieren',
@@ -117,9 +117,8 @@
       updateTitle: (v) => `🆕 Neue Helfer-Version ${v}`,
       updateText: (old) => `Installiert ist ${old}. Tippe auf „Aktualisieren“ und bestätige. Komm danach zurück, die Seite prüft es dann.`,
       updateBtn: 'Aktualisieren',
-      fromTelegram: 'Aus Telegram geöffnet? Dann erst in die Firefox-App wechseln: oben rechts ⋮ → „In Firefox öffnen“ (oder der Button hier). Im Browser von Telegram kann Violentmonkey sein Fenster nicht zeigen.',
-      inFirefoxApp: 'In der Firefox-App öffnen',
-      stuck: 'Nichts passiert? Im Browser von Telegram kann Violentmonkey sein Fenster nicht zeigen. Tippe oben rechts auf ⋮ → „In Firefox öffnen“ und dort noch einmal auf den Button. (Vielleicht wartet das Fenster auch schon in der Firefox-App.)',
+      fromTelegram: 'Aus Telegram geöffnet? Installieren und Aktualisieren klappen dort nicht (der Helfer selbst läuft dort aber). Tippe oben rechts auf ⋮ → „In Firefox öffnen“ und dort auf den Button. Oder kopiere den Link und füge ihn in Firefox ein.',
+      stuck: 'Nichts passiert? Im Browser von Telegram kann Violentmonkey sein Fenster nicht zeigen. Tippe oben rechts auf ⋮ → „In Firefox öffnen“ und dort noch einmal auf den Button.',
       step: 'Schritt',
       later: 'kommt nach dem Schritt davor',
       noFirefox: 'Noch kein Firefox? <a href="https://play.google.com/store/apps/details?id=org.mozilla.firefox">Aus dem Play Store holen</a>, dann hier auf „In Firefox öffnen“ tippen.',
@@ -132,7 +131,7 @@
           ['Firefox', 'Der Helfer läuft in Firefox (Chrome kann keine Erweiterungen). Öffne diese Seite in Firefox.'],
           ['Violentmonkey', 'In Firefox: Menü ⋮ → Erweiterungen → <a href="https://addons.mozilla.org/android/addon/violentmonkey/">Violentmonkey</a> → Hinzufügen. Ohne Violentmonkey zeigt der Installieren-Button nur Text an.'],
           ['Helfer', 'Tippe auf „Helfer installieren“ und bestätige mit „Installieren“. Komm danach in diesen Tab zurück, er prüft dann selbst, ob es geklappt hat.'],
-          ['Telegram', 'Damit Telegram Links in Firefox öffnet: Firefox als Standardbrowser festlegen und in Telegram unter Einstellungen → Chat-Einstellungen den „In-App-Browser“ ausschalten. Dann im Bot testen: /helper → 🧪 Testen.']
+          ['Telegram', 'Mach Firefox zu deinem Standardbrowser (Android-Einstellungen → Apps → Standard-Apps → Browser). Dann öffnet Telegram Links in Firefox, auch im eigenen Browser von Telegram, und der Helfer läuft dort. Dann im Bot testen: /helper → 🧪 Testen.']
         ],
         ios: [
           ['Safari', 'Der Helfer läuft in Safari. Öffne diese Seite in Safari.'],
@@ -168,7 +167,7 @@
       openForm: 'Open the form without the helper',
       yourself: 'fill in yourself',
       tipTitle: 'To make it work every time',
-      tipAndroid: 'In Telegram: Settings → Chat Settings → turn off “In-App Browser”. Links then open in your default browser (make that Firefox: Android Settings → Apps → Default apps → Browser).',
+      tipAndroid: 'Make Firefox your default browser (Android Settings → Apps → Default apps → Browser). Telegram then opens links in Firefox, also in its own browser, and the helper runs there. If it still doesn’t work: in Telegram, turn off Settings → Chat Settings → “In-App Browser”.',
       tipIOS: 'In Telegram: Settings → Data and Storage (or Chat Settings) → “Open Links in” → Safari.',
       tipOther: "Set Telegram to open links in your normal browser, not in Telegram's own browser.",
       install: 'Install the helper',
@@ -188,9 +187,8 @@
       updateTitle: (v) => `🆕 New helper version ${v}`,
       updateText: (old) => `You have ${old}. Tap “Update” and confirm. Then come back; the page checks it.`,
       updateBtn: 'Update',
-      fromTelegram: 'Opened from Telegram? Then first switch to the Firefox app: ⋮ at the top right → “Open in Firefox” (or the button here). In Telegram’s browser, Violentmonkey can’t show its window.',
-      inFirefoxApp: 'Open in the Firefox app',
-      stuck: 'Nothing happened? In Telegram’s browser, Violentmonkey can’t show its window. Tap ⋮ at the top right → “Open in Firefox” and tap the button again there. (The window may also be waiting in the Firefox app already.)',
+      fromTelegram: 'Opened from Telegram? Installing and updating don’t work there (the helper itself does run there). Tap ⋮ at the top right → “Open in Firefox” and tap the button there. Or copy the link and paste it into Firefox.',
+      stuck: 'Nothing happened? In Telegram’s browser, Violentmonkey can’t show its window. Tap ⋮ at the top right → “Open in Firefox” and tap the button again there.',
       step: 'Step',
       later: 'comes after the step before',
       noFirefox: 'No Firefox yet? <a href="https://play.google.com/store/apps/details?id=org.mozilla.firefox">Get it from the Play Store</a>, then tap “Open in Firefox” here.',
@@ -203,7 +201,7 @@
           ['Firefox', 'The helper runs in Firefox (Chrome can’t run extensions). Open this page in Firefox.'],
           ['Violentmonkey', 'In Firefox: menu ⋮ → Extensions → <a href="https://addons.mozilla.org/android/addon/violentmonkey/">Violentmonkey</a> → Add. Without Violentmonkey, the install button only shows text.'],
           ['Helper', 'Tap “Install the helper” and confirm with “Install”. Then come back to this tab; it checks by itself whether it worked.'],
-          ['Telegram', 'So that Telegram opens links in Firefox: make Firefox your default browser, and in Telegram turn off Settings → Chat Settings → “In-App Browser”. Then test it in the bot: /helper → 🧪 Test.']
+          ['Telegram', 'Make Firefox your default browser (Android Settings → Apps → Default apps → Browser). Telegram then opens links in Firefox, also in its own browser, and the helper runs there. Then test it in the bot: /helper → 🧪 Test.']
         ],
         ios: [
           ['Safari', 'The helper runs in Safari. Open this page in Safari.'],
@@ -233,13 +231,13 @@
   // Android: in Telegram's browser (a Firefox custom tab) the script
   // manager can't show its install window (a new tab stays in Telegram and
   // stays blank), and the page can't tell it is in one. So before the
-  // install button: how to get to the Firefox app, plus an intent link that
-  // may do it in one tap.
+  // install button: ⋮ → "Open in Firefox", or copy the link into Firefox.
+  // (Links and intents from Telegram's browser only open a background tab in
+  // Firefox that doesn't load right.) Filling works in Telegram's browser.
   const fromTelegram = () => {
     if (!android) return '';
-    const here = location.host + location.pathname + location.search + location.hash;
     return `<p class="muted">${t.fromTelegram}</p>
-      <a class="btn" href="intent://${esc(here)}#Intent;scheme=https;package=org.mozilla.firefox;end">${t.inFirefoxApp}</a>`;
+      <button class="btn" data-copy="${esc(location.href)}">${t.copyLink}</button>`;
   };
   // The userscript marks the page with its version; the meta tag names the
   // newest one.
