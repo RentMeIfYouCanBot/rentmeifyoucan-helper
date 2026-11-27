@@ -8,6 +8,9 @@ the script never submits anything.
   the hand-over page for fill links (`#f=…`, answers only in the URL fragment).
 - `rentbot-helper.user.js`: the userscript (Violentmonkey / Tampermonkey,
   Userscripts on iOS).
+- `settings.html`: the bot's settings view (Telegram Mini App on the menu
+  button; the settings travel only in the URL fragment, `#rs=…`).
+- `plz-map.html`, `plz-berlin.json`: the postcode map picker (Mini App).
 
 Source of truth: `helper/` in the bot's repository; copy changes here and
 bump the version in three places: `@version` and `VERSION` in the script,
