@@ -10,10 +10,13 @@
   Settings view for RentMeIfYouCan (a Telegram Mini App on the chat's menu
   button). Set SETTINGS_APP_URL to this page's address. The bot gives every
   chat its own button URL with that chat's settings in the fragment:
-  #rs=<base64url(zlib(JSON))>, JSON {l: lang, s: [{h: heading, n: note,
-  r: [[label, value], ...], f: line under the rows, c: folded}, ...]}. The fragment
-  never reaches this page's host. View only: settings are changed in the
-  chat with the bot.
+  #rs=<base64url(zlib(JSON))>, JSON {l: lang, s: [section, ...]}, a section
+  being {g: group heading above it, h: heading, a: tag after the heading,
+  c: folded, m: the folded card's line, b: badge, n: warning,
+  r: [[label, value, kind?], ...], f: line under the rows}. Row kinds:
+  "h" heading within the card, "d" dim remark, "ok"/"warn" value colour.
+  The fragment never reaches this page's host. View only: settings are
+  changed in the chat with the bot.
 -->
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
@@ -26,16 +29,19 @@
     --accent: var(--tg-theme-accent-text-color, var(--tg-theme-link-color, #2481cc));
     --sep: var(--tg-theme-section-separator-color, rgba(128, 128, 128, .22));
     --warn: #b26a00;
+    --ok: #2e7d32;
   }
+  :root.dark { --warn: #ffb74d; --ok: #81c784; }
   @media (prefers-color-scheme: dark) {
-    :root:not(.tg) { --bg: #101014; --card: #1c1c1e; --text: #f2f2f7; --hint: #8e8e93; --head: #8e8e93; --accent: #64b5f6; --warn: #ffb74d; }
+    :root:not(.tg) { --bg: #101014; --card: #1c1c1e; --text: #f2f2f7; --hint: #8e8e93; --head: #8e8e93; --accent: #64b5f6;
+      --warn: #ffb74d; --ok: #81c784; }
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: var(--text);
     font: 15px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     -webkit-text-size-adjust: 100%; }
   main { max-width: 640px; margin: 0 auto; padding: 12px 12px calc(24px + env(safe-area-inset-bottom)); }
-  h2 { margin: 18px 14px 6px; font-size: 13px; font-weight: 600; letter-spacing: .02em;
+  h2 { margin: 22px 14px 6px; font-size: 13px; font-weight: 600; letter-spacing: .02em;
     text-transform: uppercase; color: var(--head); }
   h2:first-child { margin-top: 6px; }
   .card { background: var(--card); border-radius: 12px; overflow: hidden; }
@@ -44,23 +50,40 @@
   .row + .row { border-top: 1px solid var(--sep); }
   .label { flex: 1 1 auto; min-width: 0; }
   .value { flex: 0 1 auto; max-width: 60%; text-align: right; overflow-wrap: anywhere; color: var(--hint); }
+  .value.ok { color: var(--ok); }
+  .value.warn { color: var(--warn); }
   .row.long { display: block; }
   .row.long .value { max-width: none; text-align: left; margin-top: 3px; color: var(--text); white-space: pre-wrap; }
+  .value.clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
+  .more { margin-top: 2px; padding: 0; border: 0; background: none; font: inherit; font-size: 14px;
+    color: var(--accent); cursor: pointer; }
+  .row.dim { color: var(--hint); font-size: 14px; }
+  .subhead { padding: 14px 14px 4px; font-size: 12px; font-weight: 600; letter-spacing: .03em;
+    text-transform: uppercase; color: var(--head); }
+  .subhead:not(:first-child) { border-top: 1px solid var(--sep); }
+  .subhead + .row { border-top: 0; }
   .foot { padding: 10px 14px; border-top: 1px solid var(--sep); color: var(--hint); font-size: 14px; }
   .fold { margin-top: 10px; }
   .card:not(.fold) + .fold { margin-top: 18px; }
-  .fold > summary { display: block; position: relative; padding: 12px 42px 12px 14px; cursor: pointer;
-    list-style: none; -webkit-tap-highlight-color: transparent; }
+  h2 + .fold { margin-top: 0; }
+  .fold > summary { display: flex; align-items: center; gap: 10px; position: relative; padding: 12px 40px 12px 14px;
+    cursor: pointer; list-style: none; -webkit-tap-highlight-color: transparent; }
   .fold > summary::-webkit-details-marker { display: none; }
   .fold > summary::after { content: ""; position: absolute; right: 18px; top: 50%; width: 8px; height: 8px;
     border-right: 2px solid var(--hint); border-bottom: 2px solid var(--hint);
     transform: translateY(-75%) rotate(45deg); transition: transform .15s; }
   .fold[open] > summary::after { transform: translateY(-25%) rotate(-135deg); }
   .fold[open] > summary { border-bottom: 1px solid var(--sep); }
+  .fold[open] > summary + .subhead { border-top: 0; }
+  .sum-main { flex: 1 1 auto; min-width: 0; }
   .title { font-weight: 600; }
+  .tag { display: inline-block; margin-left: 6px; padding: 0 7px; border: 1px solid var(--accent); border-radius: 9px;
+    color: var(--accent); font-size: 12px; font-weight: 500; line-height: 17px; vertical-align: 1px; }
   .sub { margin-top: 3px; color: var(--hint); font-size: 14px; }
   .sub.warn { color: var(--warn); }
   .fold[open] .sub { display: none; }
+  .note + .subhead { border-top: 0; }
+  .badge { flex: 0 0 auto; color: var(--accent); font-size: 13px; font-weight: 600; white-space: nowrap; }
   footer { margin: 18px 14px 0; color: var(--hint); font-size: 13px; }
   #error { margin: 24px 14px; color: var(--text); }
 </style>
@@ -73,6 +96,9 @@ const tg = window.Telegram && Telegram.WebApp;
 const inTelegram = !!tg && tg.platform && tg.platform !== "unknown";
 if (inTelegram) {
   document.documentElement.classList.add("tg");
+  const scheme = () => document.documentElement.classList.toggle("dark", tg.colorScheme === "dark");
+  scheme();
+  tg.onEvent("themeChanged", scheme);
   tg.ready();
   tg.expand();
 }
@@ -81,6 +107,8 @@ const texts = {
   de: {
     title: "Einstellungen",
     footer: "Nur zur Ansicht. Ändern kannst du alles im Chat mit dem Bot.",
+    more: "mehr",
+    less: "weniger",
     none: "In diesem Link stecken keine Einstellungen. Öffne die Seite über den Button ⚙️ Einstellungen im Chat mit dem Bot.",
     old: "Diese Telegram-Version kann die Einstellungen hier nicht anzeigen. Im Chat zeigen /filter und /profile sie auch.",
     bad: "Die Einstellungen in diesem Link sind unlesbar. Im Chat zeigen /filter und /profile sie auch.",
@@ -88,6 +116,8 @@ const texts = {
   en: {
     title: "Settings",
     footer: "View only. Change anything in the chat with the bot.",
+    more: "more",
+    less: "less",
     none: "This link carries no settings. Open the page with the ⚙️ Settings button in the chat with the bot.",
     old: "This Telegram app can't show the settings here. In the chat, /filter and /profile show them too.",
     bad: "The settings in this link can't be read. In the chat, /filter and /profile show them too.",
@@ -122,6 +152,43 @@ function showError(msg) {
   main.firstChild.id = "error";
 }
 
+function haptic() {
+  if (inTelegram && tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
+}
+
+// The closed line of a folded card: heading (and tag), the warning or the
+// short line under it, the badge on the right.
+function summary(sec) {
+  const sum = el("summary");
+  const main = el("div", "sum-main");
+  const title = el("div", "title", sec.h);
+  if (sec.a) title.append(el("span", "tag", sec.a));
+  main.append(title);
+  if (sec.n || sec.m) main.append(el("div", sec.n ? "sub warn" : "sub", sec.n || sec.m));
+  sum.append(main);
+  if (sec.b && !sec.n) sum.append(el("div", "badge", sec.b));
+  return sum;
+}
+
+function rowEl([label, value, kind]) {
+  if (kind === "h") return el("div", "subhead", label);
+  if (kind === "d") return el("div", "row dim", label);
+  const long = value.length > 32 || label.length + value.length > 48;
+  const row = el("div", long ? "row long" : "row");
+  const val = el("div", kind === "ok" || kind === "warn" ? "value " + kind : "value", value);
+  row.append(el("div", "label", label), val);
+  if (value.length > 120) { // a long message: two lines, "more" shows it all
+    val.classList.add("clamp");
+    const b = el("button", "more", t.more);
+    b.type = "button";
+    b.addEventListener("click", () => {
+      b.textContent = val.classList.toggle("clamp") ? t.more : t.less;
+    });
+    row.append(b);
+  }
+  return row;
+}
+
 function render(view) {
   if (texts[view.l]) t = texts[view.l];
   document.documentElement.lang = view.l || guess;
@@ -129,28 +196,18 @@ function render(view) {
   const main = document.getElementById("main");
   main.replaceChildren();
   for (const sec of view.s || []) {
+    if (sec.g) main.append(el("h2", "", sec.g));
     let card;
     if (sec.c) {
-      // Folded: one line to tap (title, and the warning or the preview).
       card = el("details", "card fold");
-      const sum = el("summary");
-      sum.append(el("div", "title", sec.h));
-      if (sec.n || sec.f) sum.append(el("div", sec.n ? "sub warn" : "sub", sec.n || sec.f));
-      card.append(sum);
-      card.addEventListener("toggle", () => {
-        if (inTelegram && tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
-      });
+      card.append(summary(sec));
+      card.addEventListener("toggle", haptic);
     } else {
       main.append(el("h2", "", sec.h));
       card = el("div", "card");
     }
     if (sec.n) card.append(el("div", "note", sec.n));
-    for (const [label, value] of sec.r || []) {
-      const long = value.length > 32 || label.length + value.length > 48;
-      const row = el("div", long ? "row long" : "row");
-      row.append(el("div", "label", label), el("div", "value", value));
-      card.append(row);
-    }
+    for (const r of sec.r || []) card.append(rowEl(r));
     if (sec.f) card.append(el("div", "foot", sec.f));
     main.append(card);
   }
