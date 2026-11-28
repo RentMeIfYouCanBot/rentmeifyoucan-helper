@@ -21,6 +21,8 @@
 
   Test mode (e): every setting can be changed here to try the flow, but
   nothing is saved; settings are changed in the chat with the bot.
+  A search's area can also be picked on the postcode map there (like
+  plz-map.html; Leaflet and plz-berlin.json load on first use).
 -->
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
@@ -154,6 +156,23 @@
   .opt.on::after { border: 6px solid var(--btn); }
   .hint { margin: 4px 0 0; color: var(--hint); font-size: 13px; }
 
+  .btn.wide { display: block; width: 100%; margin: 10px 0 2px; }
+
+  /* Map picker for a search's area (test mode). */
+  #mapview { position: fixed; inset: 0; z-index: 20; display: flex; flex-direction: column; background: var(--card); }
+  #mapview[hidden] { display: none; }
+  .mv-bar { display: flex; gap: 8px; padding: 10px 10px 4px; }
+  .mv-bar .inp { flex: 1 1 auto; min-width: 0; padding: 8px 10px; font-size: 15px; }
+  .mv-bar .btn { flex: 0 0 auto; padding: 8px 14px; }
+  #mv-count { padding: 2px 12px 8px; color: var(--hint); font-size: 13px; }
+  #mv-map { flex: 1 1 auto; background: #e4e7ea; }
+  #mapview .sheet-actions { padding-top: 10px; }
+  .plz-label { background: transparent; border: 0; box-shadow: none; padding: 0; font-weight: 700; font-size: 12px;
+    color: #1e1e1e; text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 2px #fff; }
+  .plz-label::before { display: none; }
+  .hide-labels .plz-label { display: none; }
+  .leaflet-control-attribution { font-size: 10px; line-height: 1.25; }
+
   /* Save bar when Telegram's own buttons aren't there. */
   #bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; display: flex; gap: 10px; max-width: 640px;
     margin: 0 auto; padding: 12px 12px calc(12px + env(safe-area-inset-bottom)); background: var(--bg);
@@ -173,6 +192,12 @@
     <div class="sheet-error" role="alert"></div>
     <div class="sheet-actions"><button class="btn ghost" id="cancel" type="button"></button><button class="btn primary" id="apply" type="button"></button></div>
   </div>
+</div>
+<div id="mapview" hidden role="dialog" aria-modal="true">
+  <div class="mv-bar"><select class="inp" id="mv-district"></select><button class="btn ghost" id="mv-clear" type="button"></button></div>
+  <div id="mv-count"></div>
+  <div id="mv-map"></div>
+  <div class="sheet-actions"><button class="btn ghost" id="mv-cancel" type="button"></button><button class="btn primary" id="mv-apply" type="button"></button></div>
 </div>
 <script>
 "use strict";
@@ -215,6 +240,10 @@ const texts = {
     min: "von", max: "bis", rentKind: "Die Grenze gilt für die", floorAny: "egal",
     districts: "Bezirke", plz: "Postleitzahlen", plzHint: "z. B. 10115, 12 (ganze Gebiete mit 12…)",
     areaHint: "Angebote kommen, wenn sie in einem der Bezirke oder unter einer der Postleitzahlen liegen.",
+    mapBtn: "🗺 Auf der Karte wählen", mapDistrict: "Ganzen Bezirk wählen …", mapClear: "Leeren",
+    mapAll: "Nichts gewählt: ganz Berlin · Tippe Gebiete an, um sie zu wählen.",
+    mapN: n => n === 1 ? "1 Postleitzahl gewählt" : n + " Postleitzahlen gewählt",
+    mapLoading: "Karte wird geladen …", mapError: "Die Karte konnte nicht geladen werden.",
     wbsAllOpt: "Alle Angebote zeigen", wbsNoneOpt: "Ich habe keinen – WBS-Wohnungen ausblenden", wbsHaveOpt: "Ich habe einen",
     level: "Stufe", lvlUnknown: "weiß ich nicht",
     featHint: "Nur Angebote, die alles Ausgewählte haben.", hideHint: "Diese Angebote kommen nicht mehr.",
@@ -250,6 +279,10 @@ const texts = {
     min: "from", max: "to", rentKind: "The limit is for the", floorAny: "any",
     districts: "Districts", plz: "Postcodes", plzHint: "e.g. 10115, 12 (whole areas starting with 12…)",
     areaHint: "Offers come when they lie in one of the districts or under one of the postcodes.",
+    mapBtn: "🗺 Pick on the map", mapDistrict: "Pick a whole district …", mapClear: "Clear",
+    mapAll: "Nothing picked: all of Berlin · Tap areas to pick them.",
+    mapN: n => n === 1 ? "1 postcode picked" : n + " postcodes picked",
+    mapLoading: "Loading the map …", mapError: "The map couldn't be loaded.",
     wbsAllOpt: "Show all offers", wbsNoneOpt: "I have none – hide WBS flats", wbsHaveOpt: "I have one",
     level: "Level", lvlUnknown: "don't know",
     featHint: "Only offers that have everything selected.", hideHint: "These offers won't come any more.",
@@ -610,14 +643,18 @@ function choices(style, options, selected, multi, onChange) {
     b.addEventListener("click", () => {
       if (multi) sel.has(k) ? sel.delete(k) : sel.add(k);
       else sel = new Set([k]);
-      for (const x of wrap.children) x.classList.toggle("on", sel.has(key(options[[...wrap.children].indexOf(x)].v)));
+      paint();
       haptic();
       if (onChange) onChange();
     });
     wrap.append(b);
   }
+  function paint() {
+    [...wrap.children].forEach((x, n) => x.classList.toggle("on", sel.has(key(options[n].v))));
+  }
   return {
     el: wrap,
+    set(vals) { sel = new Set((multi ? vals : [vals]).map(key)); paint(); },
     get: () => {
       const vals = options.filter(o => sel.has(key(o.v))).map(o => o.v);
       return multi ? vals : vals[0];
@@ -683,8 +720,14 @@ const searchEditors = {
   area(f) {
     const d = choices("chip", DISTRICTS.map(x => ({ v: x, t: x })), f.districts || [], true);
     const p = input((f.plz || []).join(", "), { inputmode: "numeric", placeholder: t.plzHint });
+    const onMap = el("button", "btn ghost wide", t.mapBtn);
+    onMap.type = "button";
+    onMap.addEventListener("click", () => {
+      const ps = p.value.split(/[\s,;]+/).filter(x => /^\d{2,5}$/.test(x));
+      openMap(d.get(), ps, r => { d.set(r.districts); p.value = r.plz.join(", "); });
+    });
     return {
-      body: [el("div", "hint", t.areaHint), field(t.districts, d.el), field(t.plz, p)],
+      body: [el("div", "hint", t.areaHint), onMap, field(t.districts, d.el), field(t.plz, p)],
       read() {
         const plz = p.value.split(/[\s,;]+/).filter(Boolean);
         if (plz.some(x => !/^\d{2,5}$/.test(x))) return bad(t.errPLZ);
@@ -874,7 +917,165 @@ function setupSheet() {
   });
   $("save").addEventListener("click", save);
   $("discard").addEventListener("click", discard);
-  if (inTelegram && tg.BackButton) tg.BackButton.onClick(closeSheet);
+  setupMap();
+  // Back closes the map first, then the sheet.
+  if (inTelegram && tg.BackButton) tg.BackButton.onClick(() => $("mapview").hidden ? closeSheet() : closeMap());
+}
+
+// ---- Map (test mode): a search's area picked by tapping postcodes, like /map.
+// Leaflet and the postcode shapes (plz-berlin.json) load on first use.
+
+const LEAFLET = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.";
+let lmap = null, mapLoad = null, mapBounds = null, mapDone = null;
+let mapPicked = new Set();
+const plzDist = {}, plzLayer = {}; // postcode → its districts, its shape
+let plzAll = [];                     // pickable postcodes, sorted
+
+function loadMap() {
+  if (mapLoad) return mapLoad;
+  const add = (tag, attrs) => new Promise((ok, fail) => {
+    const e = Object.assign(document.createElement(tag), attrs);
+    e.crossOrigin = "";
+    e.onload = ok;
+    e.onerror = () => fail(new Error("Leaflet"));
+    document.head.append(e);
+  });
+  mapLoad = Promise.all([
+    add("link", { rel: "stylesheet", href: LEAFLET + "css", integrity: "sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" }),
+    add("script", { src: LEAFLET + "js", integrity: "sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" }),
+    fetch("plz-berlin.json").then(r => { if (!r.ok) throw new Error(r.status); return r.json(); }),
+  ]).then(([, , data]) => buildMap(data));
+  mapLoad.catch(() => { mapLoad = null; }); // try again next time
+  return mapLoad;
+}
+
+// Coordinates are integers (degrees × 100000); after a ring's first point,
+// each is the difference to the point before.
+function rings(polys) {
+  return polys.map(rs => rs.map(flat => {
+    const out = [];
+    let x = 0, y = 0;
+    for (let i = 0; i + 1 < flat.length; i += 2) { x += flat[i]; y += flat[i + 1]; out.push([y / 1e5, x / 1e5]); }
+    return out;
+  }));
+}
+
+function plzStyle(c) {
+  const on = mapPicked.has(c);
+  return { color: on ? "#2e7d32" : "#5f5a50", weight: on ? 1.5 : 1, opacity: 0.8,
+           fillColor: on ? "#43a047" : "#ffffff", fillOpacity: on ? 0.55 : 0.08 };
+}
+
+function buildMap(data) {
+  lmap = L.map("mv-map", { preferCanvas: true, zoomControl: false, zoomSnap: 0.25 });
+  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    maxZoom: 18, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  }).addTo(lmap);
+  lmap.attributionControl.addAttribution(data.source);
+  mapBounds = L.latLngBounds([]);
+  for (const a of data.plz) {
+    const pickable = a.d.length > 0;
+    const poly = L.polygon(rings(a.p), pickable ? plzStyle(a.c) :
+      { color: "#999", weight: 1, fillColor: "#999", fillOpacity: 0.25, interactive: false }).addTo(lmap);
+    mapBounds.extend(poly.getBounds());
+    if (!pickable) continue;
+    plzDist[a.c] = a.d;
+    plzLayer[a.c] = poly;
+    poly.on("click", () => {
+      mapPicked.has(a.c) ? mapPicked.delete(a.c) : mapPicked.add(a.c);
+      haptic();
+      mapRefresh();
+    });
+    L.tooltip({ permanent: true, direction: "center", className: "plz-label", interactive: false })
+      .setLatLng([a.l[1] / 1e5, a.l[0] / 1e5]).setContent(a.c).addTo(lmap);
+  }
+  plzAll = Object.keys(plzDist).sort();
+  for (const d of data.districts) L.polygon(rings(d.p), { color: "#202020", weight: 2.5, fill: false, interactive: false }).addTo(lmap);
+  const labels = () => $("mv-map").classList.toggle("hide-labels", lmap.getZoom() < 12);
+  lmap.on("zoomend", labels);
+  const sel = $("mv-district");
+  for (const d of data.districts.map(d => d.n).sort((a, b) => a.localeCompare(b, "de"))) sel.add(new Option(d, d));
+  sel.onchange = () => {
+    const codes = plzAll.filter(c => plzDist[c].includes(sel.value));
+    sel.value = "";
+    if (!codes.length) return;
+    const all = codes.every(c => mapPicked.has(c));
+    for (const c of codes) all ? mapPicked.delete(c) : mapPicked.add(c);
+    haptic();
+    mapRefresh();
+    const b = L.latLngBounds([]);
+    for (const c of codes) b.extend(plzLayer[c].getBounds());
+    lmap.fitBounds(b, { padding: [10, 10] });
+  };
+  lmap.fitBounds(mapBounds, { padding: [4, 4] });
+  labels();
+}
+
+function mapRefresh() {
+  for (const c of plzAll) plzLayer[c].setStyle(plzStyle(c));
+  $("mv-count").textContent = mapPicked.size ? t.mapN(mapPicked.size) : t.mapAll;
+}
+
+// The postcodes an area covers (none: all of Berlin), as match.Filter.Picked.
+function areaPicked(ds, ps) {
+  if (!ds.length && !ps.length) return new Set();
+  return new Set(plzAll.filter(c => ps.some(p => c.startsWith(p)) || plzDist[c].some(d => ds.includes(d))));
+}
+
+// Back from picked postcodes to districts and postcodes, as
+// match.Filter.SetPicked: whole districts by name, typed prefixes and
+// postcodes outside Berlin kept while all they cover is still picked.
+function areaOf(sel, old) {
+  if (!sel.size) return { districts: [], plz: [] };
+  const districts = DISTRICTS.filter(d => {
+    const ps = plzAll.filter(c => plzDist[c].includes(d));
+    return ps.length && ps.every(c => sel.has(c));
+  });
+  const plz = old.filter(p => !plzDist[p] && plzAll.filter(c => c.startsWith(p)).every(c => sel.has(c)));
+  for (const c of plzAll) {
+    if (sel.has(c) && !plz.some(p => c.startsWith(p)) && !plzDist[c].some(d => districts.includes(d))) plz.push(c);
+  }
+  return { districts, plz: [...new Set(plz)].sort() };
+}
+
+// openMap shows the map with the area picked; done gets the new area.
+function openMap(ds, ps, done) {
+  $("mapview").hidden = false;
+  mapDone = null;
+  haptic();
+  if (inTelegram && tg.disableVerticalSwipes) tg.disableVerticalSwipes(); // a swipe on the map isn't "close"
+  const show = () => {
+    if ($("mapview").hidden) return;
+    mapPicked = areaPicked(ds, ps);
+    mapDone = () => done(areaOf(mapPicked, ps));
+    lmap.invalidateSize();
+    lmap.fitBounds(mapBounds, { padding: [4, 4] });
+    mapRefresh();
+  };
+  if (lmap) return show();
+  $("mv-count").textContent = t.mapLoading;
+  loadMap().then(show, err => { $("mv-count").textContent = t.mapError + " (" + err.message + ")"; });
+}
+
+function closeMap() {
+  $("mapview").hidden = true;
+  if (inTelegram && tg.enableVerticalSwipes) tg.enableVerticalSwipes();
+}
+
+function setupMap() {
+  $("mv-district").add(new Option(t.mapDistrict, ""));
+  $("mv-clear").textContent = t.mapClear;
+  $("mv-cancel").textContent = t.cancel;
+  $("mv-apply").textContent = t.apply;
+  $("mv-clear").addEventListener("click", () => { if (lmap) { mapPicked.clear(); haptic(); mapRefresh(); } });
+  $("mv-cancel").addEventListener("click", closeMap);
+  $("mv-apply").addEventListener("click", () => {
+    if (!mapDone) return;
+    mapDone();
+    haptic("success");
+    closeMap();
+  });
+  $("mapview").addEventListener("keydown", e => { if (e.key === "Escape") { e.stopPropagation(); closeMap(); } });
 }
 
 (async () => {
