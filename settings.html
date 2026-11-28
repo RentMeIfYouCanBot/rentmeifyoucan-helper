@@ -11,7 +11,7 @@
   button). Set SETTINGS_APP_URL to this page's address. The bot gives every
   chat its own button URL with that chat's settings in the fragment:
   #rs=<base64url(zlib(JSON))>, JSON {l: lang, s: [{h: heading, n: note,
-  r: [[label, value], ...], f: line under the rows}, ...]}. The fragment
+  r: [[label, value], ...], f: line under the rows, c: folded}, ...]}. The fragment
   never reaches this page's host. View only: settings are changed in the
   chat with the bot.
 -->
@@ -47,6 +47,20 @@
   .row.long { display: block; }
   .row.long .value { max-width: none; text-align: left; margin-top: 3px; color: var(--text); white-space: pre-wrap; }
   .foot { padding: 10px 14px; border-top: 1px solid var(--sep); color: var(--hint); font-size: 14px; }
+  .fold { margin-top: 10px; }
+  .card:not(.fold) + .fold { margin-top: 18px; }
+  .fold > summary { display: block; position: relative; padding: 12px 42px 12px 14px; cursor: pointer;
+    list-style: none; -webkit-tap-highlight-color: transparent; }
+  .fold > summary::-webkit-details-marker { display: none; }
+  .fold > summary::after { content: ""; position: absolute; right: 18px; top: 50%; width: 8px; height: 8px;
+    border-right: 2px solid var(--hint); border-bottom: 2px solid var(--hint);
+    transform: translateY(-75%) rotate(45deg); transition: transform .15s; }
+  .fold[open] > summary::after { transform: translateY(-25%) rotate(-135deg); }
+  .fold[open] > summary { border-bottom: 1px solid var(--sep); }
+  .title { font-weight: 600; }
+  .sub { margin-top: 3px; color: var(--hint); font-size: 14px; }
+  .sub.warn { color: var(--warn); }
+  .fold[open] .sub { display: none; }
   footer { margin: 18px 14px 0; color: var(--hint); font-size: 13px; }
   #error { margin: 24px 14px; color: var(--text); }
 </style>
@@ -115,8 +129,21 @@ function render(view) {
   const main = document.getElementById("main");
   main.replaceChildren();
   for (const sec of view.s || []) {
-    main.append(el("h2", "", sec.h));
-    const card = el("div", "card");
+    let card;
+    if (sec.c) {
+      // Folded: one line to tap (title, and the warning or the preview).
+      card = el("details", "card fold");
+      const sum = el("summary");
+      sum.append(el("div", "title", sec.h));
+      if (sec.n || sec.f) sum.append(el("div", sec.n ? "sub warn" : "sub", sec.n || sec.f));
+      card.append(sum);
+      card.addEventListener("toggle", () => {
+        if (inTelegram && tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
+      });
+    } else {
+      main.append(el("h2", "", sec.h));
+      card = el("div", "card");
+    }
     if (sec.n) card.append(el("div", "note", sec.n));
     for (const [label, value] of sec.r || []) {
       const long = value.length > 32 || label.length + value.length > 48;
