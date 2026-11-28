@@ -106,6 +106,7 @@
       testOk: '✅ Der Helfer funktioniert in diesem Browser',
       testOkText: 'Ab jetzt füllt der Button „✍️ Formular ausfüllen“ die Formulare für dich aus. Du prüfst, löst das Captcha und sendest ab.',
       back: 'Zurück zu Telegram',
+      backHint: 'Passiert nichts? Schreib dem Bot in Telegram: /start helper',
       testNo: '❌ Der Helfer ist in diesem Browser nicht aktiv',
       testNoText: 'Wenn du ihn schon installiert hast, öffne diese Seite in dem Browser, in dem er installiert ist:',
       checkAgain: 'Nochmal prüfen',
@@ -176,6 +177,7 @@
       testOk: '✅ The helper works in this browser',
       testOkText: 'From now on, the “✍️ Fill in form” button fills in forms for you. You check them, solve the captcha and send.',
       back: 'Back to Telegram',
+      backHint: 'Nothing happens? Send the bot in Telegram: /start helper',
       testNo: "❌ The helper isn't active in this browser",
       testNoText: 'If you already installed it, open this page in the browser where it is installed:',
       checkAgain: 'Check again',
@@ -384,6 +386,15 @@
     });
   }
 
+  // "Back to Telegram" sends the bot "/start helper", which turns the helper
+  // on. A tg:// link opens the Telegram app straight away; https://t.me/…
+  // would open t.me's web page inside Telegram's own browser, whose "Start
+  // bot" loses the "helper".
+  function backToBot(bot) {
+    return `<a class="btn primary" href="tg://resolve?domain=${bot}&start=helper">${t.back}</a>
+      <p class="muted">${t.backHint}</p>`;
+  }
+
   // ---------- #test : is the userscript running here? ----------
   function test() {
     const bot = (hash.get('b') || '').replace(/[^\w]/g, '');
@@ -392,7 +403,7 @@
       if (ok) {
         attempt.set(null);
         render(`<div class="card ok"><h1 style="margin-top:0">${t.testOk}</h1><p>${t.testOkText}</p>
-          ${bot ? `<a class="btn primary" href="https://t.me/${bot}?start=helper">${t.back}</a>` : ''}</div>
+          ${bot ? backToBot(bot) : ''}</div>
           ${outdated() ? updateCard() : ''}`);
         return;
       }
