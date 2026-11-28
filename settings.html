@@ -10,13 +10,17 @@
   Settings view for RentMeIfYouCan (a Telegram Mini App on the chat's menu
   button). Set SETTINGS_APP_URL to this page's address. The bot gives every
   chat its own button URL with that chat's settings in the fragment:
-  #rs=<base64url(zlib(JSON))>, JSON {l: lang, s: [section, ...]}, a section
-  being {g: group heading above it, h: heading, a: tag after the heading,
-  c: folded, m: the folded card's line, b: badge, n: warning,
-  r: [[label, value, kind?], ...], f: line under the rows}. Row kinds:
-  "h" heading within the card, "d" dim remark, "ok"/"warn" value colour.
-  The fragment never reaches this page's host. View only: settings are
-  changed in the chat with the bot.
+  #rs=<base64url(zlib(JSON))>, JSON {l: lang, e: test mode, s: [section, ...]},
+  a section being {g: group heading above it, h: heading, a: tag after the
+  heading, k: "s" search / "p" profile, c: folded, m: the folded card's
+  line, b: badge, n: warning, r: [[label, value, kind?, id?], ...],
+  f: line under the rows, v: a search's filter (test mode)}. Row kinds:
+  "h" heading within the card, "d" dim remark (tap: show the "u" rows),
+  "u" setting left at the default, "x" question that doesn't apply,
+  "ok"/"warn" value colour. The fragment never reaches this page's host.
+
+  Test mode (e): every setting can be changed here to try the flow, but
+  nothing is saved; settings are changed in the chat with the bot.
 -->
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
@@ -27,26 +31,34 @@
     --hint: var(--tg-theme-hint-color, #8e8e93);
     --head: var(--tg-theme-section-header-text-color, #6d6d72);
     --accent: var(--tg-theme-accent-text-color, var(--tg-theme-link-color, #2481cc));
+    --btn: var(--tg-theme-button-color, #2481cc);
+    --btn-text: var(--tg-theme-button-text-color, #ffffff);
     --sep: var(--tg-theme-section-separator-color, rgba(128, 128, 128, .22));
     --warn: #b26a00;
     --ok: #2e7d32;
+    --danger: #d32f2f;
   }
-  :root.dark { --warn: #ffb74d; --ok: #81c784; }
+  :root.dark { --warn: #ffb74d; --ok: #81c784; --danger: #ef5350; }
   @media (prefers-color-scheme: dark) {
     :root:not(.tg) { --bg: #101014; --card: #1c1c1e; --text: #f2f2f7; --hint: #8e8e93; --head: #8e8e93; --accent: #64b5f6;
-      --warn: #ffb74d; --ok: #81c784; }
+      --btn: #3a8ee6; --warn: #ffb74d; --ok: #81c784; --danger: #ef5350; }
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: var(--text);
     font: 15px/1.35 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     -webkit-text-size-adjust: 100%; }
+  body.locked { overflow: hidden; }
+  button { -webkit-tap-highlight-color: transparent; }
   main { max-width: 640px; margin: 0 auto; padding: 12px 12px calc(24px + env(safe-area-inset-bottom)); }
+  body.bar main { padding-bottom: calc(84px + env(safe-area-inset-bottom)); }
   h2 { margin: 22px 14px 6px; font-size: 13px; font-weight: 600; letter-spacing: .02em;
     text-transform: uppercase; color: var(--head); }
-  h2:first-child { margin-top: 6px; }
+  h2:first-child, .banner + h2 { margin-top: 6px; }
+  .banner { margin-bottom: 14px; padding: 10px 14px; border-radius: 12px; font-size: 14px;
+    background: var(--card); border-left: 3px solid var(--accent); }
   .card { background: var(--card); border-radius: 12px; overflow: hidden; }
   .note { padding: 10px 14px; color: var(--warn); font-size: 14px; border-bottom: 1px solid var(--sep); }
-  .row { display: flex; gap: 12px; align-items: baseline; padding: 10px 14px; }
+  .row { display: flex; gap: 12px; align-items: baseline; padding: 10px 14px; position: relative; }
   .row + .row { border-top: 1px solid var(--sep); }
   .label { flex: 1 1 auto; min-width: 0; }
   .value { flex: 0 1 auto; max-width: 60%; text-align: right; overflow-wrap: anywhere; color: var(--hint); }
@@ -54,10 +66,26 @@
   .value.warn { color: var(--warn); }
   .row.long { display: block; }
   .row.long .value { max-width: none; text-align: left; margin-top: 3px; color: var(--text); white-space: pre-wrap; }
+  .row.unset .value { color: var(--hint); }
   .value.clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; }
   .more { margin-top: 2px; padding: 0; border: 0; background: none; font: inherit; font-size: 14px;
     color: var(--accent); cursor: pointer; }
   .row.dim { color: var(--hint); font-size: 14px; }
+  .row.tap { padding-right: 32px; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .row.tap::after { content: ""; position: absolute; right: 16px; top: 50%; width: 7px; height: 7px;
+    border-right: 2px solid var(--hint); border-top: 2px solid var(--hint); opacity: .7;
+    transform: translateY(-50%) rotate(45deg); }
+  .row.tap:active { background: rgba(128, 128, 128, .12); }
+  .row.dim.tap::after { transform: translateY(-75%) rotate(135deg); }
+  .row.changed .label::before { content: ""; display: inline-block; width: 7px; height: 7px; margin: 0 7px 1px 0;
+    border-radius: 50%; background: var(--accent); }
+  .row.switch-row { align-items: center; padding-top: 8px; padding-bottom: 8px; cursor: pointer; }
+  .switch { flex: 0 0 auto; position: relative; width: 46px; height: 28px; padding: 0; border: 0; border-radius: 14px;
+    background: var(--sep); cursor: pointer; transition: background .15s; }
+  .switch::after { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%;
+    background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, .3); transition: transform .15s; }
+  .switch.on { background: var(--ok); }
+  .switch.on::after { transform: translateX(18px); }
   .subhead { padding: 14px 14px 4px; font-size: 12px; font-weight: 600; letter-spacing: .03em;
     text-transform: uppercase; color: var(--head); }
   .subhead:not(:first-child) { border-top: 1px solid var(--sep); }
@@ -86,14 +114,71 @@
   .badge { flex: 0 0 auto; color: var(--accent); font-size: 13px; font-weight: 600; white-space: nowrap; }
   footer { margin: 18px 14px 0; color: var(--hint); font-size: 13px; }
   #error { margin: 24px 14px; color: var(--text); }
+
+  /* Editor sheet (test mode). */
+  #sheet { position: fixed; inset: 0; z-index: 10; }
+  #sheet[hidden] { display: none; }
+  .backdrop { position: absolute; inset: 0; background: rgba(0, 0, 0, .45); opacity: 0; transition: opacity .2s; }
+  .panel { position: absolute; left: 0; right: 0; bottom: 0; max-width: 640px; max-height: 88vh; margin: 0 auto;
+    display: flex; flex-direction: column; background: var(--card); border-radius: 16px 16px 0 0;
+    transform: translateY(100%); transition: transform .22s ease-out; }
+  #sheet.on .backdrop { opacity: 1; }
+  #sheet.on .panel { transform: none; }
+  .grip { width: 36px; height: 4px; margin: 8px auto 0; border-radius: 2px; background: var(--sep); }
+  .sheet-title { padding: 10px 18px 4px; font-size: 17px; font-weight: 600; }
+  .sheet-body { padding: 8px 18px 4px; overflow-y: auto; }
+  .sheet-error { min-height: 0; padding: 0 18px; color: var(--danger); font-size: 14px; }
+  .sheet-error:not(:empty) { padding-top: 6px; }
+  .sheet-actions { display: flex; gap: 10px; padding: 14px 18px calc(14px + env(safe-area-inset-bottom)); }
+  .btn { flex: 1 1 0; padding: 12px; border: 0; border-radius: 10px; font: inherit; font-weight: 600; cursor: pointer; }
+  .btn.primary { background: var(--btn); color: var(--btn-text); }
+  .btn.ghost { background: rgba(128, 128, 128, .14); color: var(--text); }
+  .fld { margin: 10px 0; }
+  .fld > span { display: block; margin-bottom: 5px; color: var(--hint); font-size: 13px; }
+  .inp { width: 100%; padding: 11px 12px; border: 1px solid var(--sep); border-radius: 10px; outline: none;
+    background: var(--bg); color: var(--text); font: inherit; font-size: 16px; }
+  .inp:focus { border-color: var(--accent); }
+  textarea.inp { min-height: 130px; resize: vertical; }
+  .pair { display: flex; gap: 10px; }
+  .pair > .fld { flex: 1 1 0; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+  .chip { padding: 7px 13px; border: 1px solid var(--sep); border-radius: 17px; background: none; color: var(--text);
+    font: inherit; font-size: 14px; cursor: pointer; }
+  .chip.on { border-color: var(--btn); background: var(--btn); color: var(--btn-text); }
+  .opts { margin: 4px 0; }
+  .opt { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; padding: 13px 2px;
+    border: 0; border-bottom: 1px solid var(--sep); background: none; color: var(--text); font: inherit;
+    text-align: left; cursor: pointer; }
+  .opt:last-child { border-bottom: 0; }
+  .opt::after { content: ""; flex: 0 0 auto; width: 20px; height: 20px; border: 2px solid var(--sep); border-radius: 50%; }
+  .opt.on::after { border: 6px solid var(--btn); }
+  .hint { margin: 4px 0 0; color: var(--hint); font-size: 13px; }
+
+  /* Save bar when Telegram's own buttons aren't there. */
+  #bar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; display: flex; gap: 10px; max-width: 640px;
+    margin: 0 auto; padding: 12px 12px calc(12px + env(safe-area-inset-bottom)); background: var(--bg);
+    border-top: 1px solid var(--sep); }
+  #bar[hidden] { display: none; }
 </style>
 </head>
 <body>
 <main id="main"></main>
+<div id="bar" hidden><button class="btn ghost" id="discard" type="button"></button><button class="btn primary" id="save" type="button"></button></div>
+<div id="sheet" hidden>
+  <div class="backdrop"></div>
+  <div class="panel" role="dialog" aria-modal="true">
+    <div class="grip"></div>
+    <div class="sheet-title"></div>
+    <div class="sheet-body"></div>
+    <div class="sheet-error" role="alert"></div>
+    <div class="sheet-actions"><button class="btn ghost" id="cancel" type="button"></button><button class="btn primary" id="apply" type="button"></button></div>
+  </div>
+</div>
 <script>
 "use strict";
 const tg = window.Telegram && Telegram.WebApp;
 const inTelegram = !!tg && tg.platform && tg.platform !== "unknown";
+const tgAtLeast = v => inTelegram && tg.isVersionAtLeast && tg.isVersionAtLeast(v);
 if (inTelegram) {
   document.documentElement.classList.add("tg");
   const scheme = () => document.documentElement.classList.toggle("dark", tg.colorScheme === "dark");
@@ -107,24 +192,86 @@ const texts = {
   de: {
     title: "Einstellungen",
     footer: "Nur zur Ansicht. Ändern kannst du alles im Chat mit dem Bot.",
-    more: "mehr",
-    less: "weniger",
+    footerDemo: "Testmodus: Änderungen gehen beim Schließen verloren.",
+    banner: "🧪 Testmodus: Tipp auf eine Einstellung, um sie zu ändern. Gespeichert wird nichts.",
+    more: "mehr", less: "weniger",
     none: "In diesem Link stecken keine Einstellungen. Öffne die Seite über den Button ⚙️ Einstellungen im Chat mit dem Bot.",
     old: "Diese Telegram-Version kann die Einstellungen hier nicht anzeigen. Im Chat zeigen /filter und /profile sie auch.",
     bad: "Die Einstellungen in diesem Link sind unlesbar. Im Chat zeigen /filter und /profile sie auch.",
+    save: "Speichern (%d)", discard: "Verwerfen", apply: "Übernehmen", cancel: "Abbrechen",
+    testTitle: "🧪 Testmodus", savedIntro: "Nichts gespeichert. Der Bot hätte bekommen:", andMore: "… und %d weitere",
+    on: "an", off: "aus", paused: "pausiert", yes: "ja", no: "nein", empty: "—",
+    ms: "Frau", mr: "Herr", noSal: "Keine Anrede", now: "sofort", orDate: "oder ab einem Datum",
+    rentL: "Miete (%s)", warm: "warm", cold: "kalt", roomsL: "Zimmer", floorL: "Etage", areaL: "Gegend",
+    featL: "Muss haben", hideL: "Ausgeblendet", modeL: "Modus",
+    any: "egal", wbsAll: "alle Angebote", featNone: "nichts Bestimmtes", hideNone: "nichts",
+    lenient: "großzügig (auch unsichere Treffer)", strictOn: "streng (nur sichere Treffer)",
+    upTo: "bis %s", from: "ab %s", andUp: "ab %s", only: "nur %s", gf: "Erdgeschoss", basement: "Untergeschoss",
+    floorN: "%d. Etage", noWbs: "keine WBS-Wohnungen", haveLvl: "ich habe WBS %d", haveOne: "ich habe einen",
+    withWbs: "mit WBS", roomsN: "%s Zimmer", noLimits: "keine Einschränkungen",
+    allElse: "Alles andere: egal", noneSet: "Keine Einschränkungen: jedes Angebot kommt",
+    feat: { lift: "Aufzug", balcony: "Balkon/Loggia", shower: "Dusche", bathtub: "Badewanne", barrierfree: "barrierefrei" },
+    group: { students: "Studierende", seniors: "Senioren", special: "besonderer Wohnbedarf", wg: "WG-Zimmer", income: "mittlere Einkommen" },
+    min: "von", max: "bis", rentKind: "Die Grenze gilt für die", floorAny: "egal",
+    districts: "Bezirke", plz: "Postleitzahlen", plzHint: "z. B. 10115, 12 (ganze Gebiete mit 12…)",
+    areaHint: "Angebote kommen, wenn sie in einem der Bezirke oder unter einer der Postleitzahlen liegen.",
+    wbsAllOpt: "Alle Angebote zeigen", wbsNoneOpt: "Ich habe keinen – WBS-Wohnungen ausblenden", wbsHaveOpt: "Ich habe einen",
+    level: "Stufe", lvlUnknown: "weiß ich nicht",
+    featHint: "Nur Angebote, die alles Ausgewählte haben.", hideHint: "Diese Angebote kommen nicht mehr.",
+    dateHint: "TT.MM.JJJJ",
+    errNum: "Bitte eine Zahl eingeben.", errOrder: "„von“ muss kleiner als „bis“ sein.", errReq: "Bitte ausfüllen.",
+    errEmail: "Bitte eine gültige E-Mail-Adresse eingeben.", errPhone: "Bitte eine gültige Telefonnummer eingeben.",
+    errDate: "Bitte als TT.MM.JJJJ eingeben.", errPLZ: "Postleitzahlen: 2 bis 5 Ziffern, mit Komma getrennt.",
+    errRange: "Bitte zwischen %d und %d.", errPick: "Bitte etwas auswählen.",
   },
   en: {
     title: "Settings",
     footer: "View only. Change anything in the chat with the bot.",
-    more: "more",
-    less: "less",
+    footerDemo: "Test mode: changes are lost when you close this.",
+    banner: "🧪 Test mode: tap a setting to change it. Nothing is saved.",
+    more: "more", less: "less",
     none: "This link carries no settings. Open the page with the ⚙️ Settings button in the chat with the bot.",
     old: "This Telegram app can't show the settings here. In the chat, /filter and /profile show them too.",
     bad: "The settings in this link can't be read. In the chat, /filter and /profile show them too.",
+    save: "Save (%d)", discard: "Discard", apply: "Apply", cancel: "Cancel",
+    testTitle: "🧪 Test mode", savedIntro: "Nothing saved. The bot would have received:", andMore: "… and %d more",
+    on: "on", off: "off", paused: "paused", yes: "yes", no: "no", empty: "—",
+    ms: "Ms", mr: "Mr", noSal: "No salutation", now: "now", orDate: "or from a date",
+    rentL: "Rent (%s)", warm: "warm", cold: "cold", roomsL: "Rooms", floorL: "Floor", areaL: "Area",
+    featL: "Must have", hideL: "Hidden", modeL: "Mode",
+    any: "any", wbsAll: "all offers", featNone: "nothing in particular", hideNone: "nothing",
+    lenient: "lenient (also unsure matches)", strictOn: "strict (only sure matches)",
+    upTo: "up to %s", from: "from %s", andUp: "%s and up", only: "only %s", gf: "ground floor", basement: "basement",
+    floorN: "floor %d", noWbs: "no WBS flats", haveLvl: "I have WBS %d", haveOne: "I have one",
+    withWbs: "with WBS", roomsN: "%s rooms", noLimits: "no limits",
+    allElse: "Everything else: any", noneSet: "No limits: every offer comes",
+    feat: { lift: "lift", balcony: "balcony/loggia", shower: "shower", bathtub: "bathtub", barrierfree: "barrier-free" },
+    group: { students: "students", seniors: "seniors", special: "special needs", wg: "WG rooms", income: "middle incomes" },
+    min: "from", max: "to", rentKind: "The limit is for the", floorAny: "any",
+    districts: "Districts", plz: "Postcodes", plzHint: "e.g. 10115, 12 (whole areas starting with 12…)",
+    areaHint: "Offers come when they lie in one of the districts or under one of the postcodes.",
+    wbsAllOpt: "Show all offers", wbsNoneOpt: "I have none – hide WBS flats", wbsHaveOpt: "I have one",
+    level: "Level", lvlUnknown: "don't know",
+    featHint: "Only offers that have everything selected.", hideHint: "These offers won't come any more.",
+    dateHint: "DD.MM.YYYY",
+    errNum: "Please enter a number.", errOrder: "“from” must be lower than “to”.", errReq: "Please fill this in.",
+    errEmail: "Please enter a valid email address.", errPhone: "Please enter a valid phone number.",
+    errDate: "Please enter it as DD.MM.YYYY.", errPLZ: "Postcodes: 2 to 5 digits, separated by commas.",
+    errRange: "Please between %d and %d.", errPick: "Please pick something.",
   },
 };
 const guess = (navigator.language || "de").toLowerCase().startsWith("de") ? "de" : "en";
 let t = texts[guess];
+const F = (s, ...a) => { let i = 0; return s.replace(/%[sd]/g, () => a[i++]); };
+const clone = o => JSON.parse(JSON.stringify(o));
+const $ = id => document.getElementById(id);
+
+const DISTRICTS = ["Mitte", "Friedrichshain-Kreuzberg", "Pankow", "Charlottenburg-Wilmersdorf", "Spandau",
+  "Steglitz-Zehlendorf", "Tempelhof-Schöneberg", "Neukölln", "Treptow-Köpenick", "Marzahn-Hellersdorf",
+  "Lichtenberg", "Reinickendorf"];
+const FEATURES = ["lift", "balcony", "shower", "bathtub", "barrierfree"];
+const GROUPS = ["students", "seniors", "special", "wg", "income"];
+const SWITCHES = ["notify", "autodelete", "autoapply", "helper"];
 
 // Telegram adds its own parameters to the fragment, before or after ours.
 function payload() {
@@ -147,71 +294,587 @@ function el(tag, cls, text) {
 }
 
 function showError(msg) {
-  const main = document.getElementById("main");
+  const main = $("main");
   main.replaceChildren(el("p", "", msg));
   main.firstChild.id = "error";
 }
 
-function haptic() {
-  if (inTelegram && tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
+function haptic(kind) {
+  if (!inTelegram || !tg.HapticFeedback) return;
+  if (kind === "success" || kind === "error") tg.HapticFeedback.notificationOccurred(kind);
+  else if (kind === "light") tg.HapticFeedback.impactOccurred("light");
+  else tg.HapticFeedback.selectionChanged();
 }
 
-// The closed line of a folded card: heading (and tag), the warning or the
-// short line under it, the badge on the right.
-function summary(sec) {
+// ---- A search's filter as text (the bot's match.Filter.Lines and Summary).
+
+const has = v => v !== undefined && v !== null;
+const fm = (v, unit) => String(Math.round(v * 100) / 100) + unit;
+function rng(lo, hi, unit) {
+  if (!has(lo) && !has(hi)) return t.any;
+  if (!has(lo)) return F(t.upTo, fm(hi, unit));
+  if (!has(hi)) return F(t.from, fm(lo, unit));
+  return fm(lo, unit) + " – " + fm(hi, unit);
+}
+const floorName = v => v === 0 ? t.gf : v < 0 ? t.basement : F(t.floorN, v);
+function floorShort(lo, hi) {
+  if (!has(lo) && !has(hi)) return t.any;
+  if (!has(hi)) return F(t.andUp, floorName(lo));
+  if (!has(lo)) return F(t.upTo, floorName(hi));
+  if (lo === hi) return F(t.only, floorName(lo));
+  return floorName(lo) + " – " + floorName(hi);
+}
+function areaText(f, n) {
+  let d = f.districts || [], p = f.plz || [], extra = 0;
+  if (n > 0 && d.length + p.length > n) {
+    extra = d.length + p.length - n;
+    if (d.length >= n) { d = d.slice(0, n); p = []; } else p = p.slice(0, n - d.length);
+  }
+  const parts = [];
+  if (d.length) parts.push(d.join(", "));
+  if (p.length) parts.push("PLZ " + p.join(", "));
+  return parts.join("; ") + (extra ? " +" + extra : "");
+}
+function wbsText(f) {
+  if (f.has_wbs === false) return t.noWbs;
+  return has(f.wbs_level) ? F(t.haveLvl, f.wbs_level) : t.haveOne;
+}
+const featText = f => (f.features || []).map(x => t.feat[x] || x).join(", ");
+
+// filterLines: [id, label, value, set] in the bot's order.
+function filterLines(f) {
+  const area = areaText(f, 0);
+  return [
+    ["rent", F(t.rentL, f.rent_mode === "cold" ? t.cold : t.warm), rng(f.rent_min, f.rent_max, " €"), has(f.rent_min) || has(f.rent_max)],
+    ["rooms", t.roomsL, rng(f.rooms_min, f.rooms_max, ""), has(f.rooms_min) || has(f.rooms_max)],
+    ["floor", t.floorL, floorShort(f.floor_min, f.floor_max), has(f.floor_min) || has(f.floor_max)],
+    ["area", t.areaL, area || t.any, area !== ""],
+    ["wbs", "WBS", has(f.has_wbs) ? wbsText(f) : t.wbsAll, has(f.has_wbs)],
+    ["features", t.featL, featText(f) || t.featNone, !!(f.features || []).length],
+    ["hide", t.hideL, (f.hide_groups || []).map(g => t.group[g] || g).join(", ") || t.hideNone, !!(f.hide_groups || []).length],
+    ["strict", t.modeL, f.strict ? t.strictOn : t.lenient, !!f.strict],
+  ];
+}
+
+function filterSummary(f) {
+  const parts = [];
+  if (has(f.rent_min) || has(f.rent_max)) parts.push(rng(f.rent_min, f.rent_max, " €"));
+  if (has(f.rooms_min) || has(f.rooms_max)) parts.push(F(t.roomsN, rng(f.rooms_min, f.rooms_max, "")));
+  if (has(f.floor_min) || has(f.floor_max)) parts.push(floorShort(f.floor_min, f.floor_max));
+  const a = areaText(f, 2);
+  if (a) parts.push(a);
+  if (has(f.has_wbs)) parts.push(f.has_wbs === false ? t.noWbs : has(f.wbs_level) ? "WBS " + f.wbs_level : t.withWbs);
+  if ((f.features || []).length) parts.push(featText(f));
+  return parts.length ? parts.join(" · ") : t.noLimits;
+}
+
+// A search's rows in test mode, from its filter (the bot's way: set ones,
+// the dim remark, the defaults; then "applies with").
+function searchRows(sec) {
+  const lines = filterLines(sec.v), rows = [];
+  for (const [id, label, value, set] of lines) if (set) rows.push([label, value, "", id]);
+  const unset = lines.filter(l => !l[3]);
+  if (unset.length === lines.length) rows.push([t.noneSet, "", "d"]);
+  else if (unset.length) rows.push([t.allElse, "", "d"]);
+  for (const [id, label, value] of unset) rows.push([label, value, "u", id]);
+  for (const r of sec.r || []) if (r[3] === "profile") rows.push(r);
+  return rows;
+}
+
+const isSearch = sec => demo && sec.k === "s" && sec.v;
+const rowsOf = sec => isSearch(sec) ? searchRows(sec) : sec.r || [];
+
+// ---- State: the view as loaded (orig), as last "saved" (base), as edited.
+
+let demo = false, orig, base, state;
+const ui = { open: new Set(), revealed: new Set() };
+
+function snapshot(view) {
+  const m = new Map();
+  view.s.forEach((sec, i) => {
+    for (const r of rowsOf(sec)) if (r[3]) m.set(i + ":" + r[3], { label: r[0], value: r[1] });
+  });
+  return m;
+}
+
+function changes() {
+  const a = snapshot(base), out = [];
+  for (const [k, v] of snapshot(state)) {
+    const o = a.get(k);
+    if (!o || o.value !== v.value || o.label !== v.label) out.push({ k, label: v.label, to: v.value });
+  }
+  return out;
+}
+
+const findRow = (sec, id) => (sec.r || []).find(r => r[3] === id);
+
+function profileSum(rows) {
+  const v = id => { const r = rows.find(r => r[3] === id); return r && r[1] !== t.empty ? r[1] : ""; };
+  return [[v("first_name"), v("last_name")].filter(Boolean).join(" "), v("email")].filter(Boolean).join(" · ");
+}
+
+// ---- Rendering.
+
+function summary(sec, line, badge) {
   const sum = el("summary");
   const main = el("div", "sum-main");
   const title = el("div", "title", sec.h);
   if (sec.a) title.append(el("span", "tag", sec.a));
   main.append(title);
-  if (sec.n || sec.m) main.append(el("div", sec.n ? "sub warn" : "sub", sec.n || sec.m));
+  if (sec.n || line) main.append(el("div", sec.n ? "sub warn" : "sub", sec.n || line));
   sum.append(main);
-  if (sec.b && !sec.n) sum.append(el("div", "badge", sec.b));
+  if (badge && !sec.n) sum.append(el("div", "badge", badge));
   return sum;
 }
 
-function rowEl([label, value, kind]) {
+function rowEl(r, i, sec, changed) {
+  const [label, value, kind, id] = r;
   if (kind === "h") return el("div", "subhead", label);
-  if (kind === "d") return el("div", "row dim", label);
+  const edit = demo && id ? editorOf(sec, id) : null;
+  if (edit === "switch") {
+    const row = el("div", "row switch-row" + (changed ? " changed" : ""));
+    const on = value === t.on;
+    const sw = el("button", on ? "switch on" : "switch");
+    sw.type = "button";
+    sw.setAttribute("role", "switch");
+    sw.setAttribute("aria-checked", on);
+    sw.setAttribute("aria-label", label);
+    row.append(el("div", "label", label), sw);
+    row.addEventListener("click", () => toggle(i, id));
+    return row;
+  }
   const long = value.length > 32 || label.length + value.length > 48;
-  const row = el("div", long ? "row long" : "row");
+  let cls = long ? "row long" : "row";
+  if (kind === "u") cls += " unset";
+  if (edit) cls += " tap";
+  if (changed) cls += " changed";
+  const row = el("div", cls);
   const val = el("div", kind === "ok" || kind === "warn" ? "value " + kind : "value", value);
   row.append(el("div", "label", label), val);
   if (value.length > 120) { // a long message: two lines, "more" shows it all
     val.classList.add("clamp");
     const b = el("button", "more", t.more);
     b.type = "button";
-    b.addEventListener("click", () => {
+    b.addEventListener("click", e => {
+      e.stopPropagation();
       b.textContent = val.classList.toggle("clamp") ? t.more : t.less;
     });
     row.append(b);
   }
+  if (edit) row.addEventListener("click", () => openEditor(i, id));
   return row;
 }
 
-function render(view) {
-  if (texts[view.l]) t = texts[view.l];
-  document.documentElement.lang = view.l || guess;
-  document.title = t.title;
-  const main = document.getElementById("main");
+function render() {
+  const main = $("main");
   main.replaceChildren();
-  for (const sec of view.s || []) {
+  const changed = new Set(demo ? changes().map(c => c.k) : []);
+  if (demo) main.append(el("div", "banner", t.banner));
+  state.s.forEach((sec, i) => {
+    const rows = rowsOf(sec);
+    // A search changed here: its count no longer fits.
+    const touched = isSearch(sec) && JSON.stringify(sec.v) !== JSON.stringify(orig.s[i].v);
+    let line = sec.m;
+    if (isSearch(sec)) line = filterSummary(sec.v);
+    else if (demo && sec.k === "p") line = profileSum(rows);
     if (sec.g) main.append(el("h2", "", sec.g));
     let card;
     if (sec.c) {
       card = el("details", "card fold");
-      card.append(summary(sec));
-      card.addEventListener("toggle", haptic);
+      if (ui.open.has(i)) card.open = true;
+      card.append(summary(sec, line, touched ? "" : sec.b));
+      card.addEventListener("toggle", () => {
+        card.open ? ui.open.add(i) : ui.open.delete(i);
+        haptic();
+      });
     } else {
       main.append(el("h2", "", sec.h));
       card = el("div", "card");
     }
     if (sec.n) card.append(el("div", "note", sec.n));
-    for (const r of sec.r || []) card.append(rowEl(r));
-    if (sec.f) card.append(el("div", "foot", sec.f));
+    const hasUnset = rows.some(r => r[2] === "u");
+    const wbs = sec.k === "p" && findRow({ r: rows }, "wbs");
+    const wbsYes = !wbs || wbs[1] === t.yes;
+    for (const r of rows) {
+      const [label, , kind, id] = r;
+      if (kind === "u" && !ui.revealed.has(i)) continue;
+      if (kind === "d") {
+        if (hasUnset && ui.revealed.has(i)) continue;
+        const d = el("div", hasUnset ? "row dim tap" : "row dim", label);
+        if (hasUnset) d.addEventListener("click", () => { ui.revealed.add(i); haptic(); render(); });
+        card.append(d);
+        continue;
+      }
+      if (sec.k === "p" && id && id.startsWith("wbs_")) {
+        if (!wbsYes) continue; // the WBS details only with a WBS
+      } else if (kind === "x") continue;
+      card.append(rowEl(r, i, sec, changed.has(i + ":" + id)));
+    }
+    if (sec.f && !touched) card.append(el("div", "foot", sec.f));
     main.append(card);
+  });
+  main.append(el("footer", "", demo ? t.footerDemo : t.footer));
+  if (demo) updateSave(changed.size);
+}
+
+// ---- Saving (test mode: shows what would be sent).
+
+let tgButtons = false;
+const secondary = () => tgAtLeast("7.10") && tg.SecondaryButton ? tg.SecondaryButton : null;
+
+function updateSave(n) {
+  const sheetOpen = !$("sheet").hidden;
+  const mb = inTelegram && tg.MainButton ? tg.MainButton : null, sb = secondary();
+  if (mb && !tgButtons) {
+    mb.onClick(save);
+    if (sb) sb.onClick(discard);
+    tgButtons = true;
   }
-  main.append(el("footer", "", t.footer));
+  const show = n > 0 && !sheetOpen;
+  if (mb) {
+    if (show) { mb.setText(F(t.save, n)); mb.show(); } else mb.hide();
+  }
+  if (sb) {
+    if (show) { sb.setText(t.discard); sb.show(); } else sb.hide();
+  }
+  const bar = show && !(mb && sb);
+  $("bar").hidden = !bar;
+  $("save").hidden = !!mb;
+  $("save").textContent = F(t.save, n);
+  document.body.classList.toggle("bar", bar);
+  if (inTelegram && tg.enableClosingConfirmation) n > 0 ? tg.enableClosingConfirmation() : tg.disableClosingConfirmation();
+}
+
+function save() {
+  const cs = changes();
+  if (!cs.length) return;
+  let msg = t.savedIntro, shown = 0;
+  for (const c of cs) {
+    const next = msg + "\n• " + c.label + ": " + c.to;
+    if (next.length > 225) break;
+    msg = next;
+    shown++;
+  }
+  if (shown < cs.length) msg += "\n" + F(t.andMore, cs.length - shown);
+  haptic("success");
+  if (tgAtLeast("6.2") && tg.showPopup) tg.showPopup({ title: t.testTitle, message: msg, buttons: [{ type: "ok" }] });
+  else alert(t.testTitle + "\n\n" + msg);
+  base = clone(state);
+  render();
+}
+
+function discard() {
+  state = clone(base);
+  haptic("light");
+  render();
+}
+
+// ---- Editing.
+
+function toggle(i, id) {
+  const row = findRow(state.s[i], id);
+  const on = row[1] === t.on;
+  if (id === "notify") {
+    row[1] = on ? t.paused : t.on;
+    row[2] = on ? "warn" : "ok";
+  } else row[1] = on ? t.off : t.on;
+  haptic("light");
+  render();
+}
+
+// Controls for the editors.
+function field(label, input, hint) {
+  const f = el("label", "fld");
+  if (label) f.append(el("span", "", label));
+  f.append(input);
+  if (hint) f.append(el("div", "hint", hint));
+  return f;
+}
+function input(value, attrs = {}) {
+  const e = el(attrs.area ? "textarea" : "input", "inp");
+  if (!attrs.area) e.type = attrs.type || "text";
+  e.value = value === undefined || value === null ? "" : value;
+  for (const k of ["inputmode", "placeholder", "autocomplete", "maxlength"]) if (attrs[k]) e.setAttribute(k, attrs[k]);
+  return e;
+}
+// choices: a list (style "opt") or chips ("chip"), one or several.
+function choices(style, options, selected, multi, onChange) {
+  const key = v => JSON.stringify(v === undefined ? null : v);
+  let sel = new Set((multi ? selected || [] : [selected]).map(key));
+  const wrap = el("div", style === "chip" ? "chips" : "opts");
+  for (const o of options) {
+    const b = el("button", style, o.t);
+    b.type = "button";
+    const k = key(o.v);
+    b.classList.toggle("on", sel.has(k));
+    b.addEventListener("click", () => {
+      if (multi) sel.has(k) ? sel.delete(k) : sel.add(k);
+      else sel = new Set([k]);
+      for (const x of wrap.children) x.classList.toggle("on", sel.has(key(options[[...wrap.children].indexOf(x)].v)));
+      haptic();
+      if (onChange) onChange();
+    });
+    wrap.append(b);
+  }
+  return {
+    el: wrap,
+    get: () => {
+      const vals = options.filter(o => sel.has(key(o.v))).map(o => o.v);
+      return multi ? vals : vals[0];
+    },
+    picked: () => options.some(o => sel.has(key(o.v))),
+  };
+}
+// num: "" → null, a bad number → NaN.
+function num(e) {
+  const s = e.value.trim().replace(",", ".");
+  if (s === "") return null;
+  const n = Number(s);
+  return isFinite(n) && n >= 0 ? n : NaN;
+}
+const reDate = /^\d{1,2}\.\d{1,2}\.\d{4}$/;
+const bad = err => ({ err }), good = ok => ({ ok });
+const setKey = (o, k, v) => { if (v === null || v === undefined || (Array.isArray(v) && !v.length)) delete o[k]; else o[k] = v; };
+
+// A range of two numbers ("from", "to").
+function rangeEditor(f, loKey, hiKey, attrs, extra) {
+  const lo = input(f[loKey], attrs), hi = input(f[hiKey], attrs);
+  const pair = el("div", "pair");
+  pair.append(field(t.min, lo), field(t.max, hi));
+  return {
+    body: [pair, ...(extra ? extra.body : [])],
+    focus: lo,
+    read() {
+      const a = num(lo), b = num(hi);
+      if (Number.isNaN(a) || Number.isNaN(b)) return bad(t.errNum);
+      if (a !== null && b !== null && a > b) return bad(t.errOrder);
+      return good(f2 => { setKey(f2, loKey, a); setKey(f2, hiKey, b); if (extra) extra.apply(f2); });
+    },
+  };
+}
+
+// Editors of a search's settings: (filter) → {body, focus?, read() → bad(error) | good(apply(filter))}.
+const searchEditors = {
+  rent(f) {
+    const mode = choices("chip", [{ v: "warm", t: t.warm }, { v: "cold", t: t.cold }], f.rent_mode === "cold" ? "cold" : "warm");
+    const extra = { body: [field(t.rentKind, mode.el)], apply: f2 => setKey(f2, "rent_mode", mode.get() === "cold" ? "cold" : null) };
+    return rangeEditor(f, "rent_min", "rent_max", { inputmode: "numeric", placeholder: "€" }, extra);
+  },
+  rooms: f => rangeEditor(f, "rooms_min", "rooms_max", { inputmode: "decimal", placeholder: "1, 2.5 …" }),
+  floor(f) {
+    const opts = [{ v: null, t: t.floorAny }, { v: -1, t: t.basement }, { v: 0, t: t.gf }];
+    for (let n = 1; n <= 10; n++) opts.push({ v: n, t: F(t.floorN, n) });
+    const sel = cur => {
+      const s = el("select", "inp");
+      opts.forEach((o, k) => { const op = el("option", "", o.t); op.value = k; if (o.v === (has(cur) ? cur : null)) op.selected = true; s.append(op); });
+      return s;
+    };
+    const lo = sel(f.floor_min), hi = sel(f.floor_max), pair = el("div", "pair");
+    pair.append(field(t.min, lo), field(t.max, hi));
+    return {
+      body: [pair],
+      read() {
+        const a = opts[lo.value].v, b = opts[hi.value].v;
+        if (a !== null && b !== null && a > b) return bad(t.errOrder);
+        return good(f2 => { setKey(f2, "floor_min", a); setKey(f2, "floor_max", b); });
+      },
+    };
+  },
+  area(f) {
+    const d = choices("chip", DISTRICTS.map(x => ({ v: x, t: x })), f.districts || [], true);
+    const p = input((f.plz || []).join(", "), { inputmode: "numeric", placeholder: t.plzHint });
+    return {
+      body: [el("div", "hint", t.areaHint), field(t.districts, d.el), field(t.plz, p)],
+      read() {
+        const plz = p.value.split(/[\s,;]+/).filter(Boolean);
+        if (plz.some(x => !/^\d{2,5}$/.test(x))) return bad(t.errPLZ);
+        const ds = d.get();
+        return good(f2 => { setKey(f2, "districts", DISTRICTS.filter(x => ds.includes(x))); setKey(f2, "plz", [...new Set(plz)]); });
+      },
+    };
+  },
+  wbs(f) {
+    const cur = !has(f.has_wbs) ? "all" : f.has_wbs ? "have" : "none";
+    const lvlBox = el("div");
+    const kind = choices("opt", [{ v: "all", t: t.wbsAllOpt }, { v: "none", t: t.wbsNoneOpt }, { v: "have", t: t.wbsHaveOpt }],
+      cur, false, () => { lvlBox.hidden = kind.get() !== "have"; });
+    const lvl = choices("chip", [100, 140, 160, 180, 220].map(n => ({ v: n, t: "WBS " + n })).concat([{ v: null, t: t.lvlUnknown }]),
+      has(f.wbs_level) ? f.wbs_level : null);
+    lvlBox.append(field(t.level, lvl.el));
+    lvlBox.hidden = cur !== "have";
+    return {
+      body: [kind.el, lvlBox],
+      read() {
+        const k = kind.get();
+        return good(f2 => {
+          setKey(f2, "has_wbs", k === "all" ? null : k === "have");
+          setKey(f2, "wbs_level", k === "have" ? lvl.get() : null);
+        });
+      },
+    };
+  },
+  features(f) {
+    const c = choices("chip", FEATURES.map(x => ({ v: x, t: t.feat[x] })), f.features || [], true);
+    return { body: [el("div", "hint", t.featHint), c.el], read: () => good(f2 => setKey(f2, "features", FEATURES.filter(x => c.get().includes(x)))) };
+  },
+  hide(f) {
+    const c = choices("chip", GROUPS.map(x => ({ v: x, t: t.group[x] })), f.hide_groups || [], true);
+    return { body: [el("div", "hint", t.hideHint), c.el], read: () => good(f2 => setKey(f2, "hide_groups", GROUPS.filter(x => c.get().includes(x)))) };
+  },
+  strict(f) {
+    const c = choices("opt", [{ v: false, t: t.lenient }, { v: true, t: t.strictOn }], !!f.strict);
+    return { body: [c.el], read: () => good(f2 => setKey(f2, "strict", c.get() ? true : null)) };
+  },
+};
+
+// Editors of one shown value (profile, language, "applies with"):
+// (current value) → {body, focus?, read() → bad(error) | good(new value)}.
+const pick = (options, style = "opt") => cur => {
+  const c = choices(style, options.map(o => ({ v: o, t: o })), cur);
+  return { body: [c.el], read: () => c.picked() ? good(c.get()) : bad(t.errPick) };
+};
+const text = (o = {}) => cur => {
+  const e = input(cur, o);
+  return {
+    body: [field("", e, o.hint)],
+    focus: e,
+    read() {
+      const v = e.value.trim();
+      if (!v) return o.req ? bad(t.errReq) : good(t.empty);
+      if (o.check && !o.check.test(v)) return bad(o.err);
+      return good(o.unit ? v + o.unit : v);
+    },
+  };
+};
+const date = (o = {}) => text({ ...o, inputmode: "numeric", placeholder: t.dateHint, check: reDate, err: t.errDate });
+const number = (lo, hi, o = {}) => cur => {
+  const e = input(cur === t.empty ? "" : cur.replace(/[^\d]/g, ""), { inputmode: "numeric" });
+  return {
+    body: [field("", e)],
+    focus: e,
+    read() {
+      const n = num(e);
+      if (n === null) return o.req ? bad(t.errReq) : good(t.empty);
+      if (Number.isNaN(n) || n !== Math.floor(n) || n < lo || n > hi) return bad(F(t.errRange, lo, hi));
+      return good(String(n) + (o.unit || ""));
+    },
+  };
+};
+const yesNo = () => pick([t.yes, t.no]);
+const valueEditors = {
+  lang: () => pick(["Deutsch", "English"]),
+  salutation: () => pick([t.ms, t.mr, t.noSal]),
+  first_name: () => text({ req: true, autocomplete: "given-name" }),
+  last_name: () => text({ req: true, autocomplete: "family-name" }),
+  email: () => text({ type: "email", req: true, autocomplete: "email", check: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, err: t.errEmail }),
+  phone: () => text({ type: "tel", autocomplete: "tel", check: /^\+?[\d\s/()-]{6,}$/, err: t.errPhone }),
+  street: () => text({ autocomplete: "street-address" }),
+  city: () => text({ placeholder: "10115 Berlin" }),
+  birth_date: () => date(),
+  adults: () => number(1, 10, { req: true }),
+  children: () => number(0, 10, { req: true }),
+  income: () => number(1, 100000, { unit: " €" }),
+  move_in: () => cur => {
+    const now = cur === t.now;
+    const d = input(now ? "" : cur, { inputmode: "numeric", placeholder: t.dateHint });
+    const c = choices("chip", [{ v: true, t: t.now }], now ? [true] : [], true, () => { if (c.get().length) d.value = ""; });
+    d.addEventListener("input", () => { if (c.get().length) c.el.firstChild.click(); });
+    return {
+      body: [c.el, field(t.orDate, d)],
+      read() {
+        const v = d.value.trim();
+        if (v) return reDate.test(v) ? good(v) : bad(t.errDate);
+        return c.get().length ? good(t.now) : bad(t.errReq);
+      },
+    };
+  },
+  wbs: yesNo, wbs_special: yesNo, para9: yesNo, student: yesNo,
+  wbs_level: () => pick(["100", "140", "160", "180", "220"], "chip"),
+  wbs_rooms: () => number(1, 10),
+  wbs_issued: () => date(),
+  wbs_valid_until: () => date({ req: true }),
+  message: () => text({ area: true, maxlength: "2000" }),
+};
+
+// editorOf: "switch", an editor, or null (not editable here).
+function editorOf(sec, id) {
+  if (!sec.k) {
+    if (SWITCHES.includes(id)) return "switch";
+    return valueEditors[id] || null;
+  }
+  if (sec.k === "s") {
+    if (id === "profile") return () => pick(state.s.filter(s => s.k === "p").map(s => s.h.replace(/^👤\s*/, "")));
+    return sec.v && searchEditors[id] ? "search" : null;
+  }
+  return valueEditors[id] || null;
+}
+
+let sheetApply = null;
+
+function openEditor(i, id) {
+  const sec = state.s[i];
+  const kind = editorOf(sec, id);
+  const row = rowsOf(sec).find(r => r[3] === id);
+  let ed, apply;
+  if (kind === "search") {
+    ed = searchEditors[id](sec.v);
+    apply = fn => fn(sec.v);
+  } else {
+    const r = findRow(sec, id);
+    ed = kind()(r[1] === t.empty ? "" : r[1]);
+    apply = v => { r[1] = v; };
+  }
+  haptic();
+  $("sheet").querySelector(".sheet-title").textContent = row[0];
+  $("sheet").querySelector(".sheet-body").replaceChildren(...ed.body);
+  $("sheet").querySelector(".sheet-error").textContent = "";
+  sheetApply = () => {
+    const res = ed.read();
+    if (res.err) {
+      $("sheet").querySelector(".sheet-error").textContent = res.err;
+      haptic("error");
+      return;
+    }
+    apply(res.ok);
+    closeSheet();
+    render();
+  };
+  openSheet(ed.focus);
+}
+
+function openSheet(focus) {
+  const s = $("sheet");
+  s.hidden = false;
+  document.body.classList.add("locked");
+  requestAnimationFrame(() => requestAnimationFrame(() => s.classList.add("on")));
+  if (inTelegram && tg.BackButton) tg.BackButton.show();
+  updateSave(demo ? changes().length : 0);
+  if (focus && !/Android|iPhone|iPad/.test(navigator.userAgent)) setTimeout(() => focus.focus(), 250);
+}
+
+function closeSheet() {
+  const s = $("sheet");
+  s.classList.remove("on");
+  document.body.classList.remove("locked");
+  if (inTelegram && tg.BackButton) tg.BackButton.hide();
+  setTimeout(() => { s.hidden = true; updateSave(changes().length); }, 220);
+}
+
+function setupSheet() {
+  $("cancel").textContent = t.cancel;
+  $("apply").textContent = t.apply;
+  $("discard").textContent = t.discard;
+  $("save").textContent = t.save.replace(" (%d)", "");
+  $("cancel").addEventListener("click", closeSheet);
+  $("sheet").querySelector(".backdrop").addEventListener("click", closeSheet);
+  $("apply").addEventListener("click", () => sheetApply && sheetApply());
+  $("sheet").addEventListener("keydown", e => {
+    if (e.key === "Enter" && e.target.tagName === "INPUT") { e.preventDefault(); sheetApply(); }
+    if (e.key === "Escape") closeSheet();
+  });
+  $("save").addEventListener("click", save);
+  $("discard").addEventListener("click", discard);
+  if (inTelegram && tg.BackButton) tg.BackButton.onClick(closeSheet);
 }
 
 (async () => {
@@ -224,7 +887,16 @@ function render(view) {
   } catch (_) {
     return showError(t.bad);
   }
-  render(view);
+  if (texts[view.l]) t = texts[view.l];
+  document.documentElement.lang = view.l || guess;
+  document.title = t.title;
+  view.s = view.s || [];
+  demo = !!view.e;
+  orig = clone(view);
+  base = clone(view);
+  state = clone(view);
+  if (demo) setupSheet();
+  render();
 })();
 </script>
 </body>
