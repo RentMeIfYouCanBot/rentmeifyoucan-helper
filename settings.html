@@ -14,7 +14,8 @@
   a section being {g: group heading above it, h: heading, a: tag after the
   heading, k: "s" search / "p" profile, c: folded, m: the folded card's
   line, b: badge, n: warning, r: [[label, value, kind?, id?], ...],
-  f: line under the rows, v: a search's filter (test mode)}. Row kinds:
+  f: line under the rows, v: a search's filter (test mode)}; t: the form
+  helper's test page (test mode), which turns the helper on. Row kinds:
   "h" heading within the card, "d" dim remark (tap: show the "u" rows),
   "u" setting left at the default, "x" question that doesn't apply,
   "ok"/"warn" value colour. The fragment never reaches this page's host.
@@ -225,6 +226,8 @@ const texts = {
     bad: "Die Einstellungen in diesem Link sind unlesbar. Im Chat zeigen /filter und /profile sie auch.",
     save: "Speichern (%d)", discard: "Verwerfen", apply: "Übernehmen", cancel: "Abbrechen",
     testTitle: "🧪 Testmodus", savedIntro: "Nichts gespeichert. Der Bot hätte bekommen:", andMore: "… und %d weitere",
+    helperTitle: "Formular-Helfer", helperGo: "Testseite öffnen",
+    helperMsg: "Eingeschaltet wird der Helfer auf seiner Testseite: Öffne sie im Browser, in dem du ihn installiert hast. Zeigt sie ✅, tippe auf „Zurück zu Telegram“, dann ist er an.",
     on: "an", off: "aus", paused: "pausiert", yes: "ja", no: "nein", empty: "—",
     ms: "Frau", mr: "Herr", noSal: "Keine Anrede", now: "sofort", orDate: "oder ab einem Datum",
     rentL: "Miete (%s)", warm: "warm", cold: "kalt", roomsL: "Zimmer", floorL: "Etage", areaL: "Gegend",
@@ -264,6 +267,8 @@ const texts = {
     bad: "The settings in this link can't be read. In the chat, /filter and /profile show them too.",
     save: "Save (%d)", discard: "Discard", apply: "Apply", cancel: "Cancel",
     testTitle: "🧪 Test mode", savedIntro: "Nothing saved. The bot would have received:", andMore: "… and %d more",
+    helperTitle: "Form helper", helperGo: "Open test page",
+    helperMsg: "The helper is turned on from its test page: open it in the browser where you installed it. When it shows ✅, tap “Back to Telegram”, and it's on.",
     on: "on", off: "off", paused: "paused", yes: "yes", no: "no", empty: "—",
     ms: "Ms", mr: "Mr", noSal: "No salutation", now: "now", orDate: "or from a date",
     rentL: "Rent (%s)", warm: "warm", cold: "cold", roomsL: "Rooms", floorL: "Floor", areaL: "Area",
@@ -494,7 +499,8 @@ function rowEl(r, i, sec, changed) {
     });
     row.append(b);
   }
-  if (edit) row.addEventListener("click", () => openEditor(i, id));
+  if (edit === "helper") row.addEventListener("click", openHelperTest);
+  else if (edit) row.addEventListener("click", () => openEditor(i, id));
   return row;
 }
 
@@ -839,9 +845,22 @@ const valueEditors = {
   message: () => text({ area: true, maxlength: "2000" }),
 };
 
-// editorOf: "switch", an editor, or null (not editable here).
+// openHelperTest: why, then the form helper's test page (its "Back to
+// Telegram" turns the helper on in the chat).
+function openHelperTest() {
+  haptic();
+  const go = () => inTelegram && tg.openLink ? tg.openLink(state.t) : window.open(state.t, "_blank");
+  if (tgAtLeast("6.2") && tg.showPopup) {
+    tg.showPopup({ title: t.helperTitle, message: t.helperMsg,
+      buttons: [{ id: "go", type: "default", text: t.helperGo }, { type: "cancel" }] }, id => { if (id === "go") go(); });
+  } else if (confirm(t.helperTitle + "\n\n" + t.helperMsg)) go();
+}
+
+// editorOf: "switch", "helper", an editor, or null (not editable here).
 function editorOf(sec, id) {
   if (!sec.k) {
+    // Off, the helper is turned on by its test page (it checks the script).
+    if (id === "helper" && state.t && findRow(sec, id)[1] !== t.on) return "helper";
     if (SWITCHES.includes(id)) return "switch";
     return valueEditors[id] || null;
   }
